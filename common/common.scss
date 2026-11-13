@@ -1,0 +1,254 @@
+/* IGKT Knot Dictionary
+ *
+ * All colours, radii and typography come from the active Discourse
+ * colour scheme (CSS custom properties). Nothing is hardcoded, so the
+ * page follows IGKT-default (and any future scheme, including dark mode)
+ * automatically.
+ */
+
+body.dictionary-page {
+  --d-sidebar-width: 0px;
+
+  #main-outlet-wrapper {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "main" !important;
+    gap: 0 !important;
+  }
+
+  .sidebar-wrapper,
+  #d-sidebar,
+  .sidebar-footer-wrapper,
+  .d-toc-wrapper,
+  .d-toc-main,
+  .topic-navigation,
+  .topic-timeline,
+  .discourse-toc {
+    display: none !important;
+  }
+
+  #main-outlet {
+    max-width: none;
+  }
+}
+
+.igkt-dictionary {
+  color: var(--primary);
+  background: var(--secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base, 1em);
+  line-height: var(--line-height-large, 1.4);
+
+  &__header {
+    padding: 0 0 1em;
+    margin: 0 0 1.25em;
+    border-bottom: 1px solid var(--content-border-color, var(--primary-low));
+
+    h1 {
+      margin: 0;
+      color: var(--primary);
+      font-family: var(--heading-font-family, var(--font-family));
+      font-weight: 600;
+      font-size: var(--font-up-3, 1.5em);
+      line-height: var(--line-height-medium, 1.2);
+    }
+
+    p {
+      margin: 0.4em 0 0;
+      color: var(--primary-medium);
+      font-size: var(--font-down-1, 0.9em);
+    }
+  }
+
+  &__main {
+    max-width: 100%;
+  }
+
+  &__ctl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em 1.1em;
+    align-items: flex-end;
+    margin-bottom: 0.75em;
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25em;
+      color: var(--primary-medium);
+      font-size: var(--font-down-1, 0.9em);
+    }
+
+    // Let Discourse style inputs and selects; only constrain width here.
+    input[type="search"] {
+      min-width: 16em;
+      width: 100%;
+    }
+  }
+
+  &__grow {
+    flex: 1 1 16em;
+  }
+
+  &__to,
+  &__letters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35em;
+  }
+
+  &__letters {
+    margin: 0.4em 0 0.75em;
+  }
+
+  &__count {
+    color: var(--primary-medium);
+    font-size: var(--font-down-1, 0.9em);
+    margin: 0 0 0.6em;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th {
+      text-align: left;
+      border-bottom: 2px solid var(--tertiary);
+      padding: 0.5em 0.4em;
+      font-size: var(--font-down-1, 0.85em);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--primary);
+      background: transparent;
+    }
+
+    td {
+      padding: 0.45em 0.4em;
+      border-bottom: 1px solid var(--table-border-color, var(--primary-low));
+      vertical-align: top;
+      color: var(--primary);
+    }
+  }
+
+  &__src {
+    font-weight: 600;
+  }
+
+  &__cat {
+    display: inline-block;
+    font-size: var(--font-down-2, 0.75em);
+    color: var(--primary-medium);
+    margin-left: 0.4em;
+    text-transform: uppercase;
+    font-weight: normal;
+    letter-spacing: 0.02em;
+  }
+
+  &__dash {
+    color: var(--primary-low);
+  }
+
+  &__row.has {
+    cursor: pointer;
+
+    &:hover td {
+      background: var(--d-hover, var(--primary-very-low));
+    }
+  }
+
+  &__det td {
+    background: var(--primary-very-low);
+    font-size: var(--font-down-1, 0.9em);
+    color: var(--primary-high);
+
+    ul {
+      margin: 0.25em 0;
+      padding-left: 1.2em;
+    }
+  }
+
+  &__anchor td {
+    background: var(--tertiary-low);
+    color: var(--primary);
+    font-weight: 600;
+    font-size: var(--font-down-1, 0.85em);
+    padding: 0.25em 0.4em;
+  }
+
+  &__footer {
+    margin: 1.75em 0 0;
+    padding: 1em 0 0;
+    font-size: var(--font-down-1, 0.9em);
+    color: var(--primary-medium);
+    border-top: 1px solid var(--content-border-color, var(--primary-low));
+
+    p {
+      margin: 0 0 0.6em;
+    }
+
+    a {
+      color: var(--d-link-color, var(--tertiary));
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .igkt-dictionary {
+    &__header h1 {
+      font-size: var(--font-up-2, 1.25em);
+    }
+
+    &__table {
+      thead {
+        display: none;
+      }
+
+      tbody,
+      tr,
+      td {
+        display: block;
+        width: 100%;
+      }
+    }
+
+    &__row {
+      border-bottom: 1px solid var(--table-border-color, var(--primary-low));
+      padding: 0.4em 0;
+
+      td {
+        border: 0;
+        padding: 0.15em 0.25em;
+      }
+
+      td[data-l]::before {
+        content: attr(data-l);
+        display: inline-block;
+        width: 2.6em;
+        color: var(--primary-medium);
+        font-size: var(--font-down-2, 0.75em);
+      }
+    }
+
+    &__anchor,
+    &__det {
+      td {
+        display: block;
+        width: 100%;
+      }
+    }
+  }
+}
+
+.igkt-dictionary__status {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border-radius: var(--d-border-radius, 4px);
+  background: var(--primary-very-low);
+  border: 1px solid var(--primary-low);
+  color: var(--primary);
+}
+
+.igkt-dictionary__status.is-error {
+  background: var(--danger-low, var(--tertiary-low));
+  border-color: var(--danger, var(--tertiary));
+}

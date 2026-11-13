@@ -1,0 +1,8 @@
+{
+  "name": "IGKT Knot Dictionary",
+  "component": true,
+  "license_url": "https://github.com/koloki-co/igkt-dictionary-theme-component/blob/main/LICENSE",
+  "about_url": "https://github.com/koloki-co/igkt-dictionary-theme-component",
+  "authors": "Niclas Andersson and contributors",
+  "theme_version": "0.2.0"
+}

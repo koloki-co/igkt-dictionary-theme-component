@@ -1,0 +1,257 @@
+/*
+ * Preview-only stylesheet.
+ *
+ * Colours come from igkt-light.css (the official IGKT-light scheme).
+ * Button, input and table rules below approximate Discourse's own
+ * components so the screenshots look native. The theme component on
+ * the forum uses the real Discourse .btn / input styles instead.
+ */
+
+:root {
+  --d-border-radius: 4px;
+  --d-border-radius-large: calc(var(--d-border-radius) * 2);
+  --d-button-border-radius: var(--d-border-radius);
+  --d-button-border: 1px solid transparent;
+  --d-button-transition: none;
+  --d-button-default-text-color: var(--primary);
+  --d-button-default-text-color--hover: var(--secondary);
+  --d-button-default-bg-color: var(--primary-low);
+  --d-button-default-bg-color--hover: var(--primary-medium);
+  --d-button-default-border: 1px solid var(--d-button-default-bg-color);
+  --d-button-default-border--hover: var(--d-button-border);
+  --d-button-primary-text-color: var(--secondary);
+  --d-button-primary-bg-color: var(--tertiary);
+  --d-button-primary-bg-color--hover: var(--tertiary-hover);
+  --d-button-primary-border: var(--d-button-border);
+  --d-input-text-color: var(--primary);
+  --d-input-bg-color: var(--secondary);
+  --d-input-border: 1px solid var(--input-border-color, var(--primary-400));
+  --d-input-border-radius: var(--d-border-radius);
+  --font-down-1: 0.8706em;
+  --font-down-2: 0.7579em;
+  --font-up-2: 1.3195em;
+  --font-up-3: 1.5157em;
+  --line-height-medium: 1.2;
+  --line-height-large: 1.4;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--secondary);
+  color: var(--primary);
+  font-family: var(--font-family);
+}
+
+body {
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+/* Approximate Discourse .btn / form controls for the standalone preview. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.45em 0.7em;
+  border: var(--d-button-border);
+  border-radius: var(--d-button-border-radius);
+  font: inherit;
+  font-weight: 600;
+  line-height: var(--line-height-medium);
+  cursor: pointer;
+  background: var(--d-button-default-bg-color);
+  color: var(--d-button-default-text-color);
+}
+
+.btn-default {
+  border: var(--d-button-default-border);
+  background: var(--d-button-default-bg-color);
+  color: var(--d-button-default-text-color);
+}
+
+.btn-default:hover:not(:disabled) {
+  background: var(--d-button-default-bg-color--hover);
+  color: var(--d-button-default-text-color--hover);
+  border: var(--d-button-default-border--hover);
+}
+
+.btn-primary {
+  background: var(--d-button-primary-bg-color);
+  color: var(--d-button-primary-text-color);
+  border: var(--d-button-primary-border);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--d-button-primary-bg-color--hover);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-small {
+  padding: 0.25em 0.55em;
+  font-size: var(--font-down-1);
+}
+
+.igkt-dictionary select,
+.igkt-dictionary input[type="search"] {
+  color: var(--d-input-text-color);
+  background: var(--d-input-bg-color);
+  border: var(--d-input-border);
+  border-radius: var(--d-input-border-radius);
+  padding: 0.4em 0.6em;
+  font: inherit;
+}
+
+/* Flattened equivalent of common/common.scss (dictionary rules only). */
+.igkt-dictionary {
+  color: var(--primary);
+  background: var(--secondary);
+  font-family: var(--font-family);
+  font-size: 1em;
+  line-height: var(--line-height-large);
+}
+
+.igkt-dictionary__header {
+  padding: 0 0 1em;
+  margin: 0 0 1.25em;
+  border-bottom: 1px solid var(--content-border-color, var(--primary-low));
+}
+.igkt-dictionary__header h1 {
+  margin: 0;
+  color: var(--primary);
+  font-family: var(--heading-font-family, var(--font-family));
+  font-weight: 600;
+  font-size: var(--font-up-3);
+  line-height: var(--line-height-medium);
+}
+.igkt-dictionary__header p {
+  margin: 0.4em 0 0;
+  color: var(--primary-medium);
+  font-size: var(--font-down-1);
+}
+.igkt-dictionary__main {
+  max-width: 100%;
+}
+.igkt-dictionary__ctl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em 1.1em;
+  align-items: flex-end;
+  margin-bottom: 0.75em;
+}
+.igkt-dictionary__ctl label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  color: var(--primary-medium);
+  font-size: var(--font-down-1);
+}
+.igkt-dictionary input[type="search"] {
+  min-width: 16em;
+  width: 100%;
+}
+.igkt-dictionary__grow { flex: 1 1 16em; }
+.igkt-dictionary__to,
+.igkt-dictionary__letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+}
+.igkt-dictionary__letters {
+  margin: 0.4em 0 0.75em;
+}
+.igkt-dictionary__count {
+  color: var(--primary-medium);
+  font-size: var(--font-down-1);
+  margin: 0 0 0.6em;
+}
+.igkt-dictionary__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.igkt-dictionary__table th {
+  text-align: left;
+  border-bottom: 2px solid var(--tertiary);
+  padding: 0.5em 0.4em;
+  font-size: var(--font-down-1);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: transparent;
+}
+.igkt-dictionary__table td {
+  padding: 0.45em 0.4em;
+  border-bottom: 1px solid var(--table-border-color, var(--primary-low));
+  vertical-align: top;
+  color: var(--primary);
+}
+.igkt-dictionary__src { font-weight: 600; }
+.igkt-dictionary__cat {
+  display: inline-block;
+  font-size: var(--font-down-2);
+  color: var(--primary-medium);
+  margin-left: 0.4em;
+  text-transform: uppercase;
+  font-weight: normal;
+  letter-spacing: 0.02em;
+}
+.igkt-dictionary__dash { color: var(--primary-low); }
+.igkt-dictionary__row.has { cursor: pointer; }
+.igkt-dictionary__row.has:hover td {
+  background: var(--d-hover, var(--primary-very-low));
+}
+.igkt-dictionary__det td {
+  background: var(--primary-very-low);
+  font-size: var(--font-down-1);
+  color: var(--primary-high);
+}
+.igkt-dictionary__det ul { margin: 0.25em 0; padding-left: 1.2em; }
+.igkt-dictionary__anchor td {
+  background: var(--tertiary-low);
+  color: var(--primary);
+  font-weight: 600;
+  font-size: var(--font-down-1);
+  padding: 0.25em 0.4em;
+}
+.igkt-dictionary__footer {
+  margin: 1.75em 0 0;
+  padding: 1em 0 0;
+  font-size: var(--font-down-1);
+  color: var(--primary-medium);
+  border-top: 1px solid var(--content-border-color, var(--primary-low));
+}
+.igkt-dictionary__footer p { margin: 0 0 0.6em; }
+.igkt-dictionary__footer a { color: var(--d-link-color, var(--tertiary)); }
+
+@media (max-width: 640px) {
+  body { padding: 1rem; }
+  .igkt-dictionary__header h1 { font-size: var(--font-up-2); }
+  .igkt-dictionary__table thead { display: none; }
+  .igkt-dictionary__table,
+  .igkt-dictionary__table tbody,
+  .igkt-dictionary__table tr,
+  .igkt-dictionary__table td {
+    display: block;
+    width: 100%;
+  }
+  .igkt-dictionary__row {
+    border-bottom: 1px solid var(--table-border-color, var(--primary-low));
+    padding: 0.4em 0;
+  }
+  .igkt-dictionary__row td {
+    border: 0;
+    padding: 0.15em 0.25em;
+  }
+  .igkt-dictionary__row td[data-l]::before {
+    content: attr(data-l);
+    display: inline-block;
+    width: 2.6em;
+    color: var(--primary-medium);
+    font-size: var(--font-down-2);
+  }
+}

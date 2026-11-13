@@ -1,0 +1,37 @@
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+harness/.cache/
+*.log
+
+# Local secrets (publish only deliberately sanitized example configuration)
+.env
+.env.*
+!.env.example
+
+# Local-only private workspace
+/.private/
+
+# Disposable agent and browser-automation artefacts
+/.claude/
+/.playwright-mcp/
+/.playwright/
+/playwright-report/
+/blob-report/
+/test-results/
+
+# Licensed forum data and generated exports must never enter the code repository
+/assets/ordbok.json
+/javascripts/discourse/lib/ordbok-data.js
+ordbok.json
+dictionary.json
+post-[0-9]*.md
+manifest.json
+/forum-data/
+/igkt-dictionary-forum-data/
+
+# Source archives and captures stay local
+*.zip
+*.bundle
+/screenshots/
