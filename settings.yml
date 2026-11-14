@@ -6,6 +6,14 @@ header_link_title:
   type: string
   default: "Dictionary"
 
+page_title:
+  type: string
+  default: ""
+
+page_subtitle:
+  type: string
+  default: ""
+
 default_from_language:
   type: enum
   default: en

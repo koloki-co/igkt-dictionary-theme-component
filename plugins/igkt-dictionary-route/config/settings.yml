@@ -1,0 +1,4 @@
+plugins:
+  igkt_dictionary_route_enabled:
+    default: true
+    client: false

@@ -18,15 +18,38 @@ export const LANGUAGE_LOCALES = {
   es: "es",
 };
 
+const LIGATURE_FOLDS = [
+  [/œ/g, "oe"],
+  [/Œ/g, "oe"],
+  [/æ/g, "ae"],
+  [/Æ/g, "ae"],
+  [/ß/g, "ss"],
+  [/ﬀ/g, "ff"],
+  [/ﬁ/g, "fi"],
+  [/ﬂ/g, "fl"],
+  [/ﬃ/g, "ffi"],
+  [/ﬄ/g, "ffl"],
+];
+
 /**
  * Accent-insensitive, case-insensitive fold used for search.
- * Uses NFD accent removal; ligatures are not expanded.
+ * Expands the ligatures above, then removes NFD accents.
  */
 export function fold(s) {
-  return (s || "")
+  let text = s || "";
+  for (const [pattern, replacement] of LIGATURE_FOLDS) {
+    text = text.replace(pattern, replacement);
+  }
+  return text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+/** DOM id for the notes region of one entry. */
+export function notesElementId(id) {
+  const safe = String(id || "entry").replace(/[^A-Za-z0-9_-]/g, "");
+  return `igkt-dictionary-notes-${safe || "entry"}`;
 }
 
 export function termsOf(entry, lang) {
