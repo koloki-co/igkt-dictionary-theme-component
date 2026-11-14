@@ -76,7 +76,7 @@ The dictionary shows a clear message if neither data setting is configured, and 
 
 The component does not bundle the dictionary. It loads the list at runtime from the forum. The routing plugin is not involved in that fetch.
 
-**Preferred method:** put the compact word list in **two wiki posts of one publicly readable topic**, and set `data_topic_id` to that topic’s id. The component reads `/t/{id}.json` and then `/raw/{id}/{post_number}` for the post numbers in that topic (same origin, so there is no CORS issue). Only posts that contain an `igkt-dictionary` fenced code block are parsed; ordinary replies are ignored.
+**Preferred method:** put the compact word list in **wiki posts of one publicly readable topic** (as many parts as the exporter produces), and set `data_topic_id` to that topic’s id. The component reads `/t/{id}.json` and then `/raw/{id}/{post_number}` for the post numbers in that topic (same origin, so there is no CORS issue). Only posts that contain an `igkt-dictionary` fenced code block are parsed; ordinary replies are ignored.
 
 **Why not an attachment or a theme upload?** Official Discourse hosting often serves uploads from an S3/CDN origin that does not send CORS headers. A browser `fetch` of that file from the forum can fail. A JSON attachment also needs `json` in `authorized_extensions`. A post body fetched same-origin avoids both problems, and a moderator can edit a wiki post without admin rights.
 
@@ -85,14 +85,14 @@ The component does not bundle the dictionary. It loads the list at runtime from 
 ### What to create
 
 1. Choose a **publicly readable** category (Docs, or another category that every dictionary user can see, including anonymous visitors if `/dictionary` is public).
-2. Create **one topic**, for example titled “IGKT Knot Dictionary data”. Make the first post, and the second post, **wiki** posts so moderators can edit them. Close the topic to ordinary replies if the forum allows it (staff can still add or edit the data posts).
-3. Paste the generated files:
-   - first post: `post-1.md` (intro plus part 1 of 2)
-   - second post: `post-2.md` (part 2 of 2)
+2. Create **one topic**, for example titled “IGKT Knot Dictionary data”. Make every data post a **wiki** post so moderators can edit them. Close the topic to ordinary replies if the forum allows it (staff can still add or edit the data posts).
+3. Paste every generated `post-N.md` file, in order, as successive posts:
+   - first post: `post-1.md` (intro plus part 1 of N)
+   - following posts: `post-2.md`, `post-3.md`, … (the remaining parts)
 4. Confirm that an anonymous window can open the topic. If the topic is staff-only, regular users will see a load error on `/dictionary`.
 5. An administrator sets **`data_topic_id`** to the topic id (the number in `/t/…/12345`).
 
-The list currently needs **two posts** because the compact JSON is about 55,000 characters and Discourse’s default `max_post_length` is 32,000. Do not raise `max_post_length` just for this if two posts already work.
+The exporter keeps per-term `sources` ids in the compact list and splits it into as many posts as needed so that each post stays under 30,000 characters, leaving headroom under Discourse’s default `max_post_length` of 32,000. With sources included, the full compact JSON is about 105,000 characters and currently needs **four posts**. An export that omitted `sources` used to fit in two posts (about 55,000 characters); do not use that form if you want per-term attribution. Do not raise `max_post_length` just for this if multiple posts already work. If you later add enough terms that a fifth post appears in the export, paste that too and keep every part in the topic — a missing part is reported on the page.
 
 ### Generating the paste-ready files
 
@@ -102,7 +102,7 @@ From a checkout of this component, with a current `ordbok.json` (the master file
 python3 tools/export_data.py /path/to/ordbok.json --outdir .private/forum-data
 ```
 
-This writes `post-1.md`, `post-2.md`, `dictionary.json` (the full list, for an optional `data_url`) and `manifest.json` (sizes). Each `post-N.md` is kept under 30,000 characters, leaving headroom under the 32,000 default.
+This writes `post-1.md`, `post-2.md`, … (one file per part), `dictionary.json` (the full list, for an optional `data_url`) and `manifest.json` (sizes). Each `post-N.md` is kept under 30,000 characters, leaving headroom under the 32,000 default. The number of posts depends on the size of the list with per-term `sources` included.
 
 These exports are forum data, not MIT code. Never commit them, use them as public test fixtures, or package them with a code release. Publicly readable does not mean freely redistributable.
 
