@@ -201,7 +201,18 @@ body {
   letter-spacing: 0.02em;
 }
 .igkt-dictionary__dash { color: var(--primary-low); }
+.igkt-dictionary button:focus-visible,
+.igkt-dictionary select:focus-visible,
+.igkt-dictionary input:focus-visible {
+  outline: 2px solid var(--tertiary);
+  outline-offset: 2px;
+}
+.igkt-dictionary__notes-toggle {
+  margin-left: 0.5em;
+  vertical-align: baseline;
+}
 .igkt-dictionary__row.has { cursor: pointer; }
+.igkt-dictionary__det[hidden] { display: none !important; }
 .igkt-dictionary__row.has:hover td {
   background: var(--d-hover, var(--primary-very-low));
 }

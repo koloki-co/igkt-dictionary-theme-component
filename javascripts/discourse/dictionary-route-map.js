@@ -1,12 +1,15 @@
 /**
- * Register a top-level Ember route at /dictionary.
+ * Client route for /dictionary.
  *
- * Theme JS is compiled with the same resolver layout as plugins, so a
- * `*-route-map.js` file here is picked up automatically. This is a
- * client-side route only: a theme component cannot add a Rails route.
- * In-app navigation (header icon, LinkTo) works. A full page load of
- * /dictionary may 404 on official hosting until a server pass-through
- * is added. See the README.
+ * Discourse compiles this file like a plugin route map and registers it
+ * with the Ember router, so in-app navigation works. A theme component
+ * cannot add the matching Rails route. Direct visits, bookmarks and
+ * refresh need the companion plugin in plugins/igkt-dictionary-route,
+ * which serves the Ember application for the same path.
+ *
+ * The path is a literal on purpose. Theme route maps are parsed
+ * statically and cannot read a theme setting. Keep it identical to
+ * IgktDictionaryRoute::PATH in the plugin.
  */
 export default function () {
   this.route("dictionary", { path: "/dictionary" });

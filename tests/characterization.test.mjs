@@ -18,9 +18,14 @@ test("fixtures are explicitly invented examples, not the forum word list", () =>
   assert.ok(entries.every((entry) => Object.values(entry.terms).flat().every((term) => /\((example|exempel|Beispiel|esimerkki|exemple|ejemplo)\)/.test(term))));
 });
 
-test("search folds accents and case; ligature expansion remains absent", () => {
+test("search folds accents, case and the supported ligatures", () => {
   assert.equal(logic.fold("ÅÄÖ"), "aao");
-  assert.notEqual(logic.fold("œ"), logic.fold("oe"));
+  assert.equal(logic.fold("Œuvre"), logic.fold("oeuvre"));
+  assert.equal(logic.fold("æ"), logic.fold("ae"));
+  assert.equal(logic.fold("ß"), logic.fold("ss"));
+  assert.equal(logic.fold("ﬁ"), logic.fold("fi"));
+  assert.equal(logic.notesElementId("example-0001"), "igkt-dictionary-notes-example-0001");
+  assert.equal(logic.notesElementId("bad id"), "igkt-dictionary-notes-badid");
 });
 
 test("search finds an invented term in another language", () => {

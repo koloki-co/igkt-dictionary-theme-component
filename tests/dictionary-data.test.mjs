@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMockForumServer } from "../harness/mock-forum.mjs";
+import { sanitizeSourcesHtml } from "../javascripts/discourse/lib/sources-html.js";
 
 const root = new URL("../", import.meta.url);
 const load = async (file) => import(`data:text/javascript;base64,${Buffer.from(await readFile(new URL(file, root), "utf8")).toString("base64")}`);
@@ -22,6 +23,7 @@ test("normalization accepts editorial and normalized formats using invented term
   });
   assert.deepEqual(entry.terms, { en: ["paper moon knot (example)"] });
   assert.deepEqual(entry.notes, ["Public example note."]);
+  assert.deepEqual(entry.sources, { en: { "paper moon knot (example)": ["example-source"] } });
   assert.deepEqual(data.normalizeEntry(entry), entry);
   assert.equal(data.normalizeEntry({ id: "example-empty" }), null);
 });
@@ -67,6 +69,137 @@ test("export and HTTP topic/URL loading round-trip invented fixtures without pri
   };
   assert.deepEqual(await data.loadDictionary({ topicId: "123", url: "", ...loaders }), SAMPLE_ENTRIES);
   assert.deepEqual(await data.loadDictionary({ topicId: "", url: "/forum-data/dictionary.json", ...loaders }), SAMPLE_ENTRIES);
+});
+
+test("exporter keeps invented per-term source ids", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "igkt-sources-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const source = join(dir, "example-source.json");
+  await writeFile(source, JSON.stringify([{
+    id: "example-src",
+    category: "term",
+    sources: { en: { "paper moon knot (example)": ["example-source"] } },
+    notes: ["Public example note."],
+  }]));
+  execFileSync("python3", [fileURLToPath(new URL("tools/export_data.py", root)), source, "--outdir", join(dir, "posts"), "--max-chars", "4000"]);
+  const post = await readFile(join(dir, "posts", "post-1.md"), "utf8");
+  assert.match(post, /example-source/);
+  const loaded = data.entriesFromPayloads([data.parsePayload(post)]);
+  assert.deepEqual(loaded[0].sources, { en: { "paper moon knot (example)": ["example-source"] } });
+  assert.deepEqual(loaded[0].terms, { en: ["paper moon knot (example)"] });
+});
+
+test("malformed, gapped and oversized dictionary payloads are reported", async () => {
+  assert.throws(
+    () => data.parsePayload("```igkt-dictionary\n{\"v\":9,\"part\":1,\"parts\":1}\n{\"id\":\"example-x\",\"terms\":{\"en\":[\"paper moon knot (example)\"]}}\n```"),
+    (error) => error.code === "malformed"
+  );
+  const broken = "```igkt-dictionary\n{not json\n```";
+  assert.equal(data.parsePayload(broken), null);
+  assert.equal(data.hasDictionaryFence(broken), true);
+
+  const usable = data.entriesFromPayloads([
+    { entries: [SAMPLE_ENTRIES[0], { id: "example-blank", category: "term" }] },
+  ]);
+  assert.deepEqual(usable.map((entry) => entry.id), ["example-0001"]);
+  assert.match(usable.warnings[0], /1 record was skipped/);
+  assert.throws(
+    () => data.entriesFromPayloads([{ entries: [{ id: "example-blank" }] }]),
+    (error) => error.code === "malformed"
+  );
+
+  assert.deepEqual(
+    data.postNumbersToFetch({
+      posts_count: 2,
+      highest_post_number: 3,
+      post_stream: { posts: [{ post_number: 1 }, { post_number: 3 }] },
+    }),
+    [1, 3]
+  );
+  assert.throws(
+    () => data.postNumbersToFetch({
+      posts_count: 40,
+      highest_post_number: 40,
+      post_stream: { posts: [{ post_number: 1 }] },
+    }),
+    (error) => error.code === "incomplete"
+  );
+
+  const part = (n, entry) =>
+    "```igkt-dictionary\n" +
+    JSON.stringify({ v: 1, part: n, parts: 2 }) +
+    "\n" +
+    JSON.stringify(entry) +
+    "\n```";
+  const bodies = {
+    1: part(1, SAMPLE_ENTRIES[0]),
+    3: part(2, SAMPLE_ENTRIES[1]),
+  };
+  const loaded = await data.loadFromTopic("123", {
+    fetchJson: async () => ({
+      posts_count: 2,
+      highest_post_number: 3,
+      post_stream: { posts: [{ post_number: 1 }, { post_number: 3 }] },
+    }),
+    fetchText: async (path) => {
+      const number = Number(path.split("/").pop());
+      if (!bodies[number]) {
+        throw Object.assign(new Error("missing"), { status: 404 });
+      }
+      return bodies[number];
+    },
+  });
+  assert.deepEqual(loaded.map((entry) => entry.id), ["example-0001", "example-0002"]);
+
+  await assert.rejects(
+    data.loadFromTopic("123", {
+      fetchJson: async () => ({
+        posts_count: 1,
+        highest_post_number: 1,
+        post_stream: { posts: [{ post_number: 1 }] },
+      }),
+      fetchText: async () => broken,
+    }),
+    (error) => error.code === "malformed"
+  );
+
+  const hanging = (_path, options) =>
+    new Promise((_resolve, reject) => {
+      options.signal.addEventListener("abort", () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      });
+    });
+  await assert.rejects(
+    data.defaultFetchText("/slow", hanging, { timeoutMs: 20 }),
+    (error) => error.code === "unavailable" && /timed out/.test(error.message)
+  );
+  const huge = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => "x".repeat(data.MAX_BODY_CHARS + 1),
+  });
+  await assert.rejects(data.defaultFetchText("/big", huge), (error) => error.code === "malformed");
+});
+
+test("sources footnote keeps credits and drops active markup", async () => {
+  const note = sanitizeSourcesHtml(
+    '<p><strong>Sources.</strong> <a href="https://www.wikidata.org/" onclick="alert(1)">Wikidata</a> <em>example</em></p><script>alert(1)</script><a href="javascript:alert(1)">click</a><a href="&#106;avascript:alert(1)">also</a>'
+  );
+  assert.match(note, /Wikidata/);
+  assert.match(note, /href="https:\/\/www.wikidata.org\/"/);
+  assert.match(note, /rel="noopener noreferrer"/);
+  assert.match(note, /<em>example<\/em>/);
+  assert.doesNotMatch(note, /script|onclick|javascript/i);
+
+  const settings = await readFile(new URL("../settings.yml", import.meta.url), "utf8");
+  const defaultNote = settings.slice(settings.indexOf("sources_note:"));
+  const kept = sanitizeSourcesHtml(defaultNote);
+  assert.match(kept, /Virittäjä/);
+  assert.match(kept, /Ezelius/);
+  assert.match(kept, /Wikidata/);
+  assert.match(kept, /href="https:\/\/www.wikidata.org\/"/);
 });
 
 test("preview server does not expose Git, private workspace, or sibling paths", async (t) => {

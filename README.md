@@ -1,12 +1,12 @@
 # IGKT Knot Dictionary
 
-**Code-only v2 development import, not production-ready.** Niclas approves MIT publication of the code; the word list stays on the IGKT forum under separate permissions. See [review.md](review.md), [roadmap.md](roadmap.md) and [contributor notes](feedback.md) for verified scope and remaining work. The maintainer requested a new root history so the earlier bundled list is not reachable from the replacement branch. Existing collaborators should re-clone, not merge old history.
+A Discourse **theme component**, plus a small routing plugin, that shows a multilingual knot, ropework and tools glossary at `/dictionary`. Niclas approves MIT publication of the code. The word list stays on the IGKT forum under separate permissions and is not in this repository. See [review.md](review.md) for the import boundary and [roadmap.md](roadmap.md) for what still needs a live Discourse check.
 
 Private inputs, exports, recovery files and captures belong in the root gitignored `.private/` folder and must not be included in shared archives. New review documentation is CC-BY-SA-4.0; code remains MIT and forum data retains its source-specific terms.
 
-A Discourse **theme component** that adds a multilingual knot, ropework and tools dictionary at `/dictionary` on [discourse.igkt.net](https://discourse.igkt.net).
+It is meant to be installed by a forum administrator. It does not post. The word list is loaded at runtime from a forum topic. The plugin only serves the Ember application shell for `/dictionary`; it does not read or store the word list.
 
-It is meant to be installed by a forum administrator. It does not post and does not need a custom server route for the word list. Direct `/dictionary` navigation remains a separate unresolved server-route issue.
+This is a glossary. It does not look up Ashley Book of Knots numbers.
 
 The page follows the standalone IGKT dictionary's behaviour: English UI, a source-language selector, language column toggles, one accent-insensitive search across all languages, an A–Z bar (with Å Ä Ö after Z when the source language is Swedish), category filters, a hit counter, a table that becomes cards on a narrow screen, expandable notes, and a sources footnote.
 
@@ -33,28 +33,50 @@ No machine translation is used.
 
 A tiny, clearly labelled set of **invented** example entries lives under `javascripts/discourse/lib/sample-data.js` for tests and the local harness only. That file is not the IGKT word list.
 
-## Install from the zip
+## Install
 
-1. In Discourse go to **Admin → Customize → Themes → Install → From your device** and upload `igkt-dictionary-theme-component.zip`.
-2. Open the theme that the forum actually uses (on IGKT that is **IGKT-default**) and add **IGKT Knot Dictionary** as a theme component.
-3. Set **`data_topic_id`** to the numeric id of the public data topic (see below). Optionally also set **`data_url`** as a fallback.
-4. Visit `/dictionary` from the new header book icon, or by clicking an in-app link to the `dictionary` route.
+Install both pieces. The theme component is the dictionary. The plugin is what makes `/dictionary` survive a direct visit, a bookmark and a refresh. In-app navigation from the header book icon works with the theme alone; a full page load does not.
 
-The dictionary will show a clear message for administrators if neither data setting is configured.
+### 1. Theme component
 
-### Install from a git repository (once published)
+From git, which is the method that picks up later code updates:
 
 1. **Admin → Customize → Themes → Install → From a git repository**
-2. Paste `https://github.com/koloki-co/igkt-dictionary-theme-component`.
-3. Add the component to **IGKT-default** and set `data_topic_id`, as above.
+2. Paste `https://github.com/Seaserpent/igkt-dictionary-theme-component` (branch `main` once this change is merged, or the review branch until then).
+3. Open the theme the forum actually uses (on IGKT that is **IGKT-default**) and add **IGKT Knot Dictionary** as a theme component.
+4. Set **`data_topic_id`** to the numeric id of the public data topic (see below). Optionally set **`data_url`** as a fallback.
 
-To update the **code** later, use the theme’s **Check for updates** button, or upload a new zip. To update the **word list**, edit the data topic (no theme rebuild is required).
+A zip of this repository can be uploaded with **Install → From your device** instead. Do not put generated forum posts or `dictionary.json` in that zip.
+
+To update the **code** later, use the theme’s **Check for updates** button, or upload a new zip. To update the **word list**, edit the data topic. No theme rebuild is required for a word-list edit.
+
+### 2. Routing plugin
+
+The plugin lives in [`plugins/igkt-dictionary-route`](plugins/igkt-dictionary-route). It is not installed by the theme importer. Copy or symlink that folder into the Discourse `plugins` directory so the folder itself contains `plugin.rb`, then rebuild the container.
+
+For a [discourse_docker](https://github.com/discourse/discourse_docker) `app.yml` hook, the plugins directory is empty at image build time:
+
+```yaml
+hooks:
+  after_code:
+    - exec:
+        cd: $home/plugins
+        cmd:
+          - git clone https://github.com/Seaserpent/igkt-dictionary-theme-component.git igkt-dictionary-theme-component
+          - ln -sfn igkt-dictionary-theme-component/plugins/igkt-dictionary-route igkt-dictionary-route
+```
+
+The plugin adds `GET /dictionary` and `GET /dictionary/` and renders Discourse’s `default/empty` template, which is the Ember application shell. Ember then follows the theme’s client route. A site setting, **`igkt_dictionary_route_enabled`** (default on), turns that route off without removing the plugin.
+
+Standard Discourse.org hosting does not install arbitrary plugins. On that hosting the same pass-through has to be added by the host. Self-hosted IGKT, or a plan that accepts this plugin, can install the folder above.
+
+The dictionary shows a clear message if neither data setting is configured, and a clear error if the topic cannot be read, the format is wrong, a part is missing, or the topic is too large to load.
 
 ## How the word list is hosted on the forum
 
-The component does not bundle the dictionary. It loads the list at runtime, without a custom server route.
+The component does not bundle the dictionary. It loads the list at runtime from the forum. The routing plugin is not involved in that fetch.
 
-**Preferred method:** put the compact word list in **two wiki posts of one publicly readable topic**, and set `data_topic_id` to that topic’s id. The component reads `/t/{id}.json` and then `/raw/{id}/1`, `/raw/{id}/2`, … (same origin, so there is no CORS issue). Only posts that contain an `igkt-dictionary` fenced code block are parsed; ordinary replies are ignored.
+**Preferred method:** put the compact word list in **two wiki posts of one publicly readable topic**, and set `data_topic_id` to that topic’s id. The component reads `/t/{id}.json` and then `/raw/{id}/{post_number}` for the post numbers in that topic (same origin, so there is no CORS issue). Only posts that contain an `igkt-dictionary` fenced code block are parsed; ordinary replies are ignored.
 
 **Why not an attachment or a theme upload?** Official Discourse hosting often serves uploads from an S3/CDN origin that does not send CORS headers. A browser `fetch` of that file from the forum can fail. A JSON attachment also needs `json` in `authorized_extensions`. A post body fetched same-origin avoids both problems, and a moderator can edit a wiki post without admin rights.
 
@@ -106,11 +128,13 @@ Live terms are taken from `sources[lang][term]` when you export from `ordbok.jso
 | `data_topic_id` | (empty) | Numeric id of the public topic that holds the word list. Preferred data source. |
 | `data_url` | (empty) | Optional fallback URL to a JSON array or an `igkt-dictionary` document. |
 | `show_header_link` | true | Adds a book icon in the site header that opens the dictionary **in-app** (no full page reload). |
-| `header_link_title` | Dictionary | Tooltip for that icon. |
+| `header_link_title` | Dictionary | Tooltip and accessible name for that icon. |
+| `page_title` | (empty) | Optional title. Blank uses the built-in “IGKT Multilingual Knot Dictionary”. |
+| `page_subtitle` | (empty) | Optional subtitle. Blank uses the built-in subtitle. |
 | `default_from_language` | en | Initial value of the **From** selector (`en`, `sv`, `de`, `fi`, `fr`, `es`). |
-| `sources_note` | (see below) | Footer credit on the dictionary page. HTML is allowed, so an admin can edit the wording without a code change. Keep the Virittäjä credit. |
+| `sources_note` | (see below) | Footer credit. A small set of HTML tags is kept (`p`, `a`, `strong`, `em`, `br`); other markup is removed. Keep the Virittäjä credit. |
 
-If you prefer the existing **Custom Header Links** component instead of the built-in icon, turn `show_header_link` off and add a link with URL `/dictionary`. Note that a plain `href` triggers a full page load; see “Direct visits to /dictionary” below.
+If you prefer the existing **Custom Header Links** component instead of the built-in icon, turn `show_header_link` off and add a link with URL `/dictionary`. A plain `href` does a full page load, which works once the routing plugin is installed.
 
 ## Sources
 
@@ -134,32 +158,29 @@ Source ids in `ordbok.json` (`sources[lang][term] = [ids]`) are mapped to displa
 
 The default **sources note** (editable in settings) credits the sources listed under Licence, including Virittäjä — a condition of their written permission, covering incoming Finnish terms.
 
-## Direct visits to /dictionary (important)
+## Why a plugin sits next to the theme
 
-The component registers a client-side Ember route at `/dictionary`. A theme component **cannot** add a Rails route.
+Discourse treats theme JavaScript like plugin JavaScript, so `javascripts/discourse/dictionary-route-map.js` registers an Ember route at `/dictionary`. That route runs after the Ember app has booted. A fresh tab, a bookmark and a refresh are answered by Rails before Ember starts. Theme components cannot add Rails routes. The page, its settings and the topic loader stay in the theme component. The plugin only adds the server route.
 
-- Clicking the header icon (in-app navigation) should open the page.
-- Opening `https://discourse.igkt.net/dictionary` in a new tab, refreshing it, or sharing the URL may return Discourse’s **“Oops! That page doesn’t exist”** page, because the server does not know the path.
+The smaller fix is the plugin in `plugins/igkt-dictionary-route`. It prepends `GET /dictionary` and renders `default/empty`, the same application shell Discourse uses for other client-rendered pages (`skip_before_action :check_xhr` is required, because a normal browser GET would otherwise be turned into an empty response before the action runs). Ember then enters the theme route. Pointing the path at `list#latest` would also boot Ember, and it would also run a topic-list query and is a poorer fit. The path is a literal in both the plugin and the route map. Route maps are parsed statically and cannot read a theme setting, so another community that wants a different URL changes those two files together.
 
-Workaround on official Discourse hosting, where a custom plugin is not an option: ask Discourse hosting to add a pass-through that serves the Ember app shell, equivalent to:
+Login-required forums still redirect anonymous visitors to login, because the controller inherits Discourse’s normal login filter. The dictionary does not bypass it.
 
-```ruby
-get "/dictionary" => "list#latest"
-```
+## Layout, keyboard and bad data
 
-Until that exists, in-app links still work. This is the main install risk.
+On `/dictionary` the template calls Discourse’s `hideApplicationSidebar` helper, which removes the sidebar while the page is shown and puts it back on the way out. The header, the rest of the forum, and the “Powered by Discourse” credit stay. A `dictionary-page` body class is a fallback for the column width: it zeroes `--d-sidebar-width` and hides `.sidebar-wrapper` only while that class is present. It does not restyle other pages and it does not hide the credit.
 
-## Other install risks
+Language toggles, the letter bar and note disclosure are buttons. Notes use `aria-expanded` and `aria-controls`, and Enter or Space activates the focused control. The selected letter and the selected translation columns use `aria-pressed`.
 
-These follow current Discourse theme patterns (api-initializer, Glimmer `.gjs`, `*-route-map.js`, `headerIcons`). They may still need a small adjustment on a live 2026.10 site:
+The loader accepts format version 1 (`{"v":1,"part":1,"parts":2}` as JSONL, or a JSON array). A different version, a broken `igkt-dictionary` fence, a missing part, an unreadable topic (including HTTP 403 and 404), a response over 1,000,000 characters, or a request that exceeds 20 seconds is shown on the page. A deleted post number is skipped when Discourse’s topic JSON already lists the surviving post numbers; `posts_count` alone is not treated as the last post number. Topics longer than 30 posts are refused, so a data topic should be closed to ordinary replies. Records with no usable terms are skipped and counted in a notice; if nothing usable remains, the page shows an error instead of an empty table. Per-term `sources` ids are kept on each entry when the topic includes them. The footer credit is the visitor-facing acknowledgement.
 
-- **Route map discovery.** The file is `javascripts/discourse/dictionary-route-map.js`, the same `*-route-map.js` convention plugins use. If the route is not registered, the file may need to live at `javascripts/dictionary-route-map.js`.
-- **Route template.** The template uses `ember-route-template` (`RouteTemplate`). Current Discourse core also allows a plain `<template>` in a `.gjs` route template. If the page is blank, try switching to a bare `<template>`.
-- **Sidebar hiding.** The route adds a `dictionary-page` body class and SCSS collapses the left sidebar (and any right TOC / timeline). It also calls `sidebarState.setForcedHidden(true)` when that method exists. If the sidebar is still visible, the layout CSS variables on this Discourse version may need a tweak.
-- **`themePrefix` / `settings`.** These are injected into theme JavaScript by Discourse’s theme compiler. They are used for translations and settings.
-- **Permissions.** Everyone who should see the dictionary must be able to read the data topic. If the topic is in a restricted category, those users will get a load error.
-- **`max_post_length`.** If a site has lowered this below about 30,000 characters, regenerate the export with a smaller `--max-chars` so more posts are produced, then paste every part. If a part is missing, the page reports an incomplete word list.
-- **CORS on `data_url`.** Only a concern if you use the URL fallback with a file on another origin (S3/CDN). Prefer `data_topic_id`.
+## Other install notes
+
+- **Permissions.** Everyone who should see the dictionary must be able to read the data topic, including anonymous visitors when `/dictionary` is public. A staff-only topic produces a load error for everyone else.
+- **`max_post_length`.** If a site has lowered this below about 30,000 characters, regenerate the export with a smaller `--max-chars` so more posts are produced, then paste every part. A missing part is reported on the page.
+- **CORS on `data_url`.** Only a concern for a file on another origin (S3/CDN). Prefer `data_topic_id`.
+- **`themePrefix` / `settings`.** Discourse’s theme compiler injects these. They supply translations and the settings above.
+- **Search.** Matching folds case, accents, and the ligatures œ/oe, æ/ae, ß/ss and the common ﬁ/ﬂ forms.
 
 ## Local tests and preview
 

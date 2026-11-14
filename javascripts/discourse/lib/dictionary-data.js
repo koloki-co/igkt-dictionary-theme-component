@@ -15,6 +15,10 @@
 export const FORMAT_VERSION = 1;
 export const FENCE_LANG = "igkt-dictionary";
 export const LANGS = ["en", "sv", "de", "fi", "fr", "es"];
+/** Closed data topics are a handful of posts. Replies beyond this are refused. */
+export const MAX_TOPIC_POSTS = 30;
+export const MAX_BODY_CHARS = 1_000_000;
+export const FETCH_TIMEOUT_MS = 20_000;
 
 const REMOVED_NOTE_RE = /\b(borttaget|borttagna|removed)\b/i;
 const FENCE_RE = /```(?:([A-Za-z0-9_+-]+)\r?\n)?([\s\S]*?)```/g;
@@ -36,6 +40,44 @@ export function publicNotes(notes) {
     return [];
   }
   return notes.filter((n) => typeof n === "string" && n && !isRemovalNote(n));
+}
+
+function cleanSources(sources) {
+  if (!sources || typeof sources !== "object" || Array.isArray(sources)) {
+    return null;
+  }
+  const out = {};
+  for (const [lang, langMap] of Object.entries(sources)) {
+    if (!langMap || typeof langMap !== "object" || Array.isArray(langMap)) {
+      continue;
+    }
+    const terms = {};
+    for (const [term, ids] of Object.entries(langMap)) {
+      if (!term || !Array.isArray(ids)) {
+        continue;
+      }
+      const clean = ids.filter((id) => typeof id === "string" && id);
+      if (clean.length) {
+        terms[term] = clean;
+      }
+    }
+    if (Object.keys(terms).length) {
+      out[lang] = terms;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function assertFormatVersion(version) {
+  if (version == null || version === "") {
+    return;
+  }
+  if (Number(version) !== FORMAT_VERSION) {
+    throw new DictionaryLoadError(
+      "malformed",
+      `This dictionary data uses format version ${version}. This page reads version ${FORMAT_VERSION}.`
+    );
+  }
 }
 
 export function normalizeEntry(raw) {
@@ -83,6 +125,10 @@ export function normalizeEntry(raw) {
   const notes = publicNotes(raw.notes);
   if (notes.length) {
     entry.notes = notes;
+  }
+  const cleanedSources = cleanSources(sources);
+  if (cleanedSources) {
+    entry.sources = cleanedSources;
   }
   return entry;
 }
@@ -133,6 +179,7 @@ function parseJsonl(text) {
     header = objects[0];
     start = 1;
   }
+  assertFormatVersion(header && header.v != null ? header.v : null);
   const entries = objects.slice(start);
   return {
     part: header && header.part != null ? Number(header.part) : null,
@@ -166,6 +213,7 @@ function parseOnePayload(text) {
         return { part: null, parts: null, entries: data };
       }
       if (data && Array.isArray(data.entries)) {
+        assertFormatVersion(data.v);
         return {
           part: data.part != null ? Number(data.part) : null,
           parts: data.parts != null ? Number(data.parts) : null,
@@ -267,13 +315,73 @@ export function assembleParts(partResults) {
 export function entriesFromPayloads(partResults) {
   const raw = assembleParts(partResults);
   const out = [];
+  let skipped = 0;
   for (const item of raw) {
     const entry = normalizeEntry(item);
     if (entry) {
       out.push(entry);
+    } else if (item && typeof item === "object") {
+      skipped += 1;
     }
   }
+  if (!out.length) {
+    throw new DictionaryLoadError(
+      "malformed",
+      "The dictionary data did not contain any usable entries. Each record needs at least one term."
+    );
+  }
+  if (skipped) {
+    out.warnings = [
+      skipped === 1
+        ? "1 record was skipped because it had no usable terms."
+        : `${skipped} records were skipped because they had no usable terms.`,
+    ];
+  }
   return out;
+}
+
+export function hasDictionaryFence(text) {
+  return /```[ \t]*igkt-dictionary\b/i.test(text || "");
+}
+
+/**
+ * Post numbers to read. Prefer the numbers Discourse lists when that list
+ * covers the topic, so a deleted post number is a gap rather than a fetch.
+ * Otherwise read 1..highest, which is what posts_count alone cannot express.
+ */
+export function postNumbersToFetch(topic) {
+  const listed = [];
+  const posts = topic && topic.post_stream && topic.post_stream.posts;
+  if (Array.isArray(posts)) {
+    for (const post of posts) {
+      const n = Number(post && post.post_number);
+      if (Number.isInteger(n) && n > 0) {
+        listed.push(n);
+      }
+    }
+  }
+  const highest = Number(topic && topic.highest_post_number);
+  const count = Number(topic && topic.posts_count) || 0;
+  const listedMax = listed.reduce((max, n) => Math.max(max, n), 0);
+  const last = Math.max(
+    listedMax,
+    Number.isInteger(highest) && highest > 0 ? highest : 0,
+    count
+  );
+  if (!last) {
+    return [];
+  }
+  const uniqueListed = [...new Set(listed)].sort((a, b) => a - b);
+  if (uniqueListed.length && count && uniqueListed.length >= count && listedMax === last) {
+    return uniqueListed;
+  }
+  if (last > MAX_TOPIC_POSTS) {
+    throw new DictionaryLoadError(
+      "incomplete",
+      `The data topic has ${last} posts, and this page only reads ${MAX_TOPIC_POSTS}. Use a closed topic that contains the data posts and little else.`
+    );
+  }
+  return Array.from({ length: last }, (_, i) => i + 1);
 }
 
 function httpError(status, kind) {
@@ -307,6 +415,9 @@ export async function loadFromTopic(topicId, { fetchJson, fetchText }) {
   try {
     topic = await fetchJson(`/t/${id}.json`);
   } catch (err) {
+    if (err instanceof DictionaryLoadError) {
+      throw err;
+    }
     if (err && err.status) {
       throw httpError(err.status, "topic");
     }
@@ -315,30 +426,40 @@ export async function loadFromTopic(topicId, { fetchJson, fetchText }) {
       "The dictionary data topic could not be read. The topic must be visible to everyone who should see the dictionary."
     );
   }
-  const count =
-    Number(topic && topic.posts_count) ||
-    (topic && topic.post_stream && topic.post_stream.posts
-      ? topic.post_stream.posts.length
-      : 0);
-  if (!count) {
+  const numbers = postNumbersToFetch(topic);
+  if (!numbers.length) {
     throw new DictionaryLoadError(
       "parse",
       "The dictionary data topic has no posts."
     );
   }
   const results = [];
-  for (let n = 1; n <= count; n++) {
+  for (const n of numbers) {
     try {
       const text = await fetchText(`/raw/${id}/${n}`);
       const parsed = parsePayload(text);
       if (parsed) {
         results.push(parsed);
+      } else if (hasDictionaryFence(text)) {
+        throw new DictionaryLoadError(
+          "malformed",
+          `Post ${n} contains an igkt-dictionary block that is not valid JSON or JSONL.`
+        );
       }
     } catch (err) {
-      if (err && (err.status === 403 || err.status === 404) && n === 1) {
+      if (err instanceof DictionaryLoadError) {
+        throw err;
+      }
+      if (err && err.status === 404) {
+        continue;
+      }
+      if (err && err.status) {
         throw httpError(err.status, "topic");
       }
-      // A later missing post is treated as missing data if parts are incomplete.
+      throw new DictionaryLoadError(
+        "unavailable",
+        "The dictionary data topic could not be read. The topic must be visible to everyone who should see the dictionary."
+      );
     }
   }
   return entriesFromPayloads(results);
@@ -353,6 +474,9 @@ export async function loadFromUrl(url, { fetchText }) {
   try {
     text = await fetchText(href);
   } catch (err) {
+    if (err instanceof DictionaryLoadError) {
+      throw err;
+    }
     if (err && err.status) {
       throw httpError(err.status, "url");
     }
@@ -363,6 +487,12 @@ export async function loadFromUrl(url, { fetchText }) {
   }
   const parsed = parsePayload(text);
   if (!parsed) {
+    if (hasDictionaryFence(text)) {
+      throw new DictionaryLoadError(
+        "malformed",
+        "The dictionary data URL contains an igkt-dictionary block that is not valid JSON or JSONL."
+      );
+    }
     throw new DictionaryLoadError(
       "parse",
       "The dictionary data URL did not contain a JSON array or an igkt-dictionary code block."
@@ -412,24 +542,72 @@ export async function loadDictionary({ topicId, url, fetchJson, fetchText }) {
  * fetchJson / fetchText helpers for the browser (same-origin or CORS).
  * A non-OK response becomes an error with a .status property.
  */
-export async function defaultFetchJson(path, fetchImpl) {
-  const fetchFn = fetchImpl || fetch;
-  const res = await fetchFn(path, { credentials: "same-origin" });
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
+function assertBodySize(text) {
+  if (text && text.length > MAX_BODY_CHARS) {
+    throw new DictionaryLoadError(
+      "malformed",
+      "The dictionary data response is too large to load in the browser."
+    );
   }
-  return res.json();
 }
 
-export async function defaultFetchText(path, fetchImpl) {
+async function fetchResponse(path, fetchImpl, timeoutMs) {
   const fetchFn = fetchImpl || fetch;
-  const res = await fetchFn(path, { credentials: "same-origin" });
+  const controller = typeof AbortController === "undefined" ? null : new AbortController();
+  const timer = controller
+    ? setTimeout(() => controller.abort(), timeoutMs ?? FETCH_TIMEOUT_MS)
+    : null;
+  try {
+    const options = { credentials: "same-origin" };
+    if (controller) {
+      options.signal = controller.signal;
+    }
+    return await fetchFn(path, options);
+  } catch (err) {
+    if (err instanceof DictionaryLoadError) {
+      throw err;
+    }
+    if (err && (err.name === "AbortError" || err.name === "TimeoutError")) {
+      throw new DictionaryLoadError(
+        "unavailable",
+        "The dictionary data request timed out. Try again, or ask an administrator to check the data topic."
+      );
+    }
+    throw err;
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+export async function defaultFetchJson(path, fetchImpl, options = {}) {
+  const res = await fetchResponse(path, fetchImpl, options.timeoutMs);
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
     err.status = res.status;
     throw err;
   }
-  return res.text();
+  const text = await res.text();
+  assertBodySize(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new DictionaryLoadError(
+      "malformed",
+      "The dictionary data topic response was not valid JSON."
+    );
+  }
+}
+
+export async function defaultFetchText(path, fetchImpl, options = {}) {
+  const res = await fetchResponse(path, fetchImpl, options.timeoutMs);
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  const text = await res.text();
+  assertBodySize(text);
+  return text;
 }
