@@ -93,7 +93,29 @@ def normalize_entry(raw: dict) -> dict:
     notes = public_notes(raw.get("notes"))
     if notes:
         entry["notes"] = notes
+    cleaned = clean_sources(sources)
+    if cleaned:
+        entry["sources"] = cleaned
     return entry
+
+
+def clean_sources(sources) -> dict | None:
+    if not isinstance(sources, dict):
+        return None
+    out = {}
+    for lang, lang_map in sources.items():
+        if not isinstance(lang_map, dict):
+            continue
+        terms = {}
+        for term, ids in lang_map.items():
+            if not term or not isinstance(ids, list):
+                continue
+            clean = [item for item in ids if isinstance(item, str) and item]
+            if clean:
+                terms[term] = clean
+        if terms:
+            out[lang] = terms
+    return out or None
 
 
 def entry_line(entry: dict) -> str:

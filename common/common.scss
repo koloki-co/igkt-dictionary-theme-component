@@ -6,24 +6,24 @@
  * automatically.
  */
 
+/*
+ * Dictionary page only. {{hideApplicationSidebar}} removes the sidebar
+ * from the layout and restores it when the route is left, so the header
+ * navigation and the Powered by Discourse credit stay available.
+ * If that helper is absent and the sidebar element is still rendered,
+ * collapse its column and clip the wrapper so it cannot paint over the
+ * table. Do not retarget grid areas: the credit lives in "below-content".
+ */
 body.dictionary-page {
   --d-sidebar-width: 0px;
 
   #main-outlet-wrapper {
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-areas: "main" !important;
-    gap: 0 !important;
+    grid-template-columns: 0 minmax(0, 1fr) !important;
   }
 
-  .sidebar-wrapper,
-  #d-sidebar,
-  .sidebar-footer-wrapper,
-  .d-toc-wrapper,
-  .d-toc-main,
-  .topic-navigation,
-  .topic-timeline,
-  .discourse-toc {
+  .sidebar-wrapper {
     display: none !important;
+    overflow: hidden;
   }
 
   #main-outlet {
@@ -148,12 +148,28 @@ body.dictionary-page {
     color: var(--primary-low);
   }
 
+  button:focus-visible,
+  select:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--tertiary);
+    outline-offset: 2px;
+  }
+
+  &__notes-toggle {
+    margin-left: 0.5em;
+    vertical-align: baseline;
+  }
+
   &__row.has {
     cursor: pointer;
 
     &:hover td {
       background: var(--d-hover, var(--primary-very-low));
     }
+  }
+
+  &__det[hidden] {
+    display: none !important;
   }
 
   &__det td {

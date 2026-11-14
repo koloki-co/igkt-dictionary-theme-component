@@ -8,6 +8,7 @@ import {
   defaultToLanguages,
   firstTerm,
   formatTerms,
+  notesElementId,
   prepareEntries,
 } from "../javascripts/discourse/lib/dictionary-logic.js";
 import {
@@ -15,6 +16,7 @@ import {
   defaultFetchText,
   loadDictionary,
 } from "../javascripts/discourse/lib/dictionary-data.js";
+import { sanitizeSourcesHtml } from "../javascripts/discourse/lib/sources-html.js";
 
 const SOURCES_NOTE = `
   <p><strong>Sources.</strong>
@@ -42,6 +44,7 @@ let entries = [];
 let prepared = [];
 let categories = [];
 let banner = "";
+let loadWarning = "";
 let loadState = "loading";
 let loadError = "";
 
@@ -67,7 +70,7 @@ function render() {
     root.innerHTML = `
       <div class="igkt-dictionary" id="igkt-dictionary-root">
         <header class="igkt-dictionary__header">
-          <h1>IGKT Multilingual Knot Dictionary</h1>
+          <h1 id="igkt-dictionary-title">IGKT Multilingual Knot Dictionary</h1>
           <p>Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated.</p>
         </header>
         <p class="igkt-dictionary__status" role="status">Loading the dictionary…</p>
@@ -78,7 +81,7 @@ function render() {
     root.innerHTML = `
       <div class="igkt-dictionary" id="igkt-dictionary-root">
         <header class="igkt-dictionary__header">
-          <h1>IGKT Multilingual Knot Dictionary</h1>
+          <h1 id="igkt-dictionary-title">IGKT Multilingual Knot Dictionary</h1>
           <p>Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated.</p>
         </header>
         <div class="igkt-dictionary__status is-error" role="alert"><p>${esc(loadError)}</p></div>
@@ -106,7 +109,7 @@ function render() {
     const pressed = state.to.includes(lang);
     const cls = "btn btn-small " + (pressed ? "btn-primary" : "btn-default");
     const disabled = lang === state.from ? " disabled" : "";
-    return `<button type="button" data-to="${lang}" class="${cls}" aria-pressed="${pressed}"${disabled} title="${esc(LANGUAGE_NAMES[lang])}">${lang.toUpperCase()}</button>`;
+    return `<button type="button" data-to="${lang}" class="${cls}" aria-pressed="${pressed}" aria-label="${esc(LANGUAGE_NAMES[lang])}"${disabled} title="${esc(LANGUAGE_NAMES[lang])}">${lang.toUpperCase()}</button>`;
   }).join("");
 
   const catOptions = [`<option value="">All</option>`]
@@ -123,10 +126,10 @@ function render() {
       `<option value="${lang}"${lang === state.from ? " selected" : ""}>${esc(LANGUAGE_NAMES[lang])}</option>`
   ).join("");
 
-  const letterBtn = (value, label, active) =>
-    `<button type="button" data-letter="${esc(value)}" class="btn btn-small ${active ? "btn-primary" : "btn-default"}">${esc(label)}</button>`;
-  const letters = [letterBtn("", "All", model.letter === "")]
-    .concat(model.letters.map((c) => letterBtn(c, c, model.letter === c)))
+  const letterBtn = (value, label, active, aria) =>
+    `<button type="button" data-letter="${esc(value)}" class="btn btn-small ${active ? "btn-primary" : "btn-default"}" aria-pressed="${active ? "true" : "false"}" aria-label="${esc(aria)}">${esc(label)}</button>`;
+  const letters = [letterBtn("", "All", model.letter === "", "Show every letter")]
+    .concat(model.letters.map((c) => letterBtn(c, c, model.letter === c, `Show entries starting with ${c}`)))
     .join("");
 
   const head = `<tr><th>${esc(LANGUAGE_NAMES[state.from])}</th>${state.to
@@ -141,14 +144,20 @@ function render() {
       const e = item.entry;
       const open = !!state.openIds[e.id];
       const has = e.notes && e.notes.length;
+      const notesId = notesElementId(e.id);
+      const term = firstTerm(e, state.from) || "this entry";
       let html = `<tr class="igkt-dictionary__row${has ? " has" : ""}${open ? " is-open" : ""}" data-id="${esc(e.id)}">`;
-      html += `<td class="igkt-dictionary__src" data-l="${state.from.toUpperCase()}">${dashOrTerms(e, state.from)}<span class="igkt-dictionary__cat">${esc(e.category)}</span></td>`;
+      html += `<td class="igkt-dictionary__src" data-l="${state.from.toUpperCase()}">${dashOrTerms(e, state.from)}<span class="igkt-dictionary__cat">${esc(e.category)}</span>`;
+      if (has) {
+        html += `<button type="button" class="btn btn-small btn-default igkt-dictionary__notes-toggle" data-notes="${esc(e.id)}" aria-expanded="${open ? "true" : "false"}" aria-controls="${esc(notesId)}" aria-label="${esc((open ? "Hide notes for " : "Show notes for ") + term)}">${open ? "Hide notes" : "Notes"}</button>`;
+      }
+      html += `</td>`;
       html += state.to
         .map((l) => `<td data-l="${l.toUpperCase()}">${dashOrTerms(e, l)}</td>`)
         .join("");
       html += `</tr>`;
-      if (open && has) {
-        html += `<tr class="igkt-dictionary__det"><td colspan="${state.to.length + 1}"><ul>${e.notes
+      if (has) {
+        html += `<tr id="${esc(notesId)}" class="igkt-dictionary__det"${open ? "" : " hidden"}><td colspan="${state.to.length + 1}"><ul>${e.notes
           .map((n) => `<li>${esc(n)}</li>`)
           .join("")}</ul></td></tr>`;
       }
@@ -159,15 +168,19 @@ function render() {
   const notice = banner
     ? `<p class="igkt-dictionary__status">${esc(banner)}</p>`
     : "";
+  const warning = loadWarning
+    ? `<p class="igkt-dictionary__status" role="status">${esc(loadWarning)}</p>`
+    : "";
 
   root.innerHTML = `
     <div class="igkt-dictionary" id="igkt-dictionary-root">
       <header class="igkt-dictionary__header">
-        <h1>IGKT Multilingual Knot Dictionary</h1>
+        <h1 id="igkt-dictionary-title">IGKT Multilingual Knot Dictionary</h1>
         <p>Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated.</p>
       </header>
       ${notice}
       <div class="igkt-dictionary__main">
+        ${warning}
         <div class="igkt-dictionary__ctl">
           <label>From<select id="from">${fromOptions}</select></label>
           <label>To<span class="igkt-dictionary__to" id="to">${toButtons}</span></label>
@@ -176,11 +189,11 @@ function render() {
             <input id="q" type="search" placeholder="Search in any language…" aria-label="Search the dictionary" value="${esc(state.q)}">
           </label>
         </div>
-        <div class="igkt-dictionary__letters" id="letters">${letters}</div>
+        <div class="igkt-dictionary__letters" id="letters" role="group" aria-label="First letter">${letters}</div>
         <div class="igkt-dictionary__count" aria-live="polite">${esc(count)}</div>
-        <table class="igkt-dictionary__table"><thead>${head}</thead><tbody id="tb">${body}</tbody></table>
+        <table class="igkt-dictionary__table" aria-labelledby="igkt-dictionary-title"><thead>${head}</thead><tbody id="tb">${body}</tbody></table>
       </div>
-      <footer class="igkt-dictionary__footer">${SOURCES_NOTE}</footer>
+      <footer class="igkt-dictionary__footer">${sanitizeSourcesHtml(SOURCES_NOTE)}</footer>
     </div>
   `;
 
@@ -222,11 +235,18 @@ function render() {
     render();
   };
   document.getElementById("tb").onclick = (ev) => {
+    const button = ev.target.closest("button[data-notes]");
     const row = ev.target.closest("tr.igkt-dictionary__row.has");
-    if (!row) return;
-    const id = row.getAttribute("data-id");
+    const id = button
+      ? button.getAttribute("data-notes")
+      : row && !ev.target.closest("button, a")
+        ? row.getAttribute("data-id")
+        : "";
+    if (!id) return;
     state.openIds[id] = !state.openIds[id];
     render();
+    const next = document.querySelector(`button[data-notes="${CSS.escape(id)}"]`);
+    if (next) next.focus();
   };
 }
 
@@ -249,6 +269,7 @@ async function boot() {
     }
     prepared = prepareEntries(entries);
     categories = categoryCounts(entries);
+    loadWarning = Array.isArray(entries.warnings) ? entries.warnings.join(" ") : "";
     loadState = "ready";
   } catch (err) {
     loadState = err && err.code === "unconfigured" ? "unconfigured" : "error";
