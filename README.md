@@ -1,6 +1,6 @@
 # IGKT Knot Dictionary
 
-A Discourse **theme component**, plus a small routing plugin, that shows a multilingual knot, ropework and tools glossary at `/dictionary`. Niclas approves MIT publication of the code. The word list stays on the IGKT forum under separate permissions and is not in this repository. See [review.md](review.md) for the import boundary and [roadmap.md](roadmap.md) for what still needs a live Discourse check.
+A Discourse **theme component** that shows a multilingual knot, ropework and tools glossary at `/dictionary`. Niclas approves MIT publication of the code. The word list stays on the IGKT forum under separate permissions and is not in this repository. See [review.md](review.md) for the import boundary and [roadmap.md](roadmap.md) for what still needs a live Discourse check.
 
 Private inputs, exports, recovery files and captures belong in the root gitignored `.private/` folder and must not be included in shared archives. New review documentation is CC-BY-SA-4.0; code remains MIT and forum data retains its source-specific terms.
 
@@ -36,9 +36,7 @@ A tiny, clearly labelled set of **invented** example entries lives under `javasc
 
 ## Install
 
-Install both pieces on Discourse 3.4.0 or newer. The theme component is the dictionary. The plugin is what makes `/dictionary` survive a direct visit, a bookmark and a refresh. In-app navigation from the header book icon works with the theme alone; a full page load does not.
-
-Discourse 3.3 is not enough. The page imports the named `i18n` translation function, which 3.3 does not provide, and it starts its header icon without the older plugin-API version argument. Both of those arrived in Discourse 3.4.0. The routing plugin records that minimum and will not start on an older forum.
+In-app navigation from the header book icon works with the theme alone. Direct visits, bookmarks and refreshes also require a separate server route. See [the roadmap](roadmap.md) for tested scope; a minimum supported Discourse version has not been verified.
 
 ### 1. Theme component
 
@@ -53,25 +51,11 @@ A zip of this repository can be uploaded with **Install → From your device** i
 
 To update the **code** later, use the theme’s **Check for updates** button, or upload a new zip. To update the **word list**, edit the data topic. No theme rebuild is required for a word-list edit.
 
-### 2. Routing plugin
+### 2. Server route for direct visits
 
-The plugin lives in [`plugins/igkt-dictionary-route`](plugins/igkt-dictionary-route). It is not installed by the theme importer. Copy or symlink that folder into the Discourse `plugins` directory so the folder itself contains `plugin.rb`, then rebuild the container.
+Install **Discourse Custom Route** as a separate plugin on a host that permits custom plugins. The standalone plugin is still in development and is not bundled with this component. Set `custom_route_path` to `/dictionary`, matching this component’s Ember route, then enable `custom_route_enabled`. If replacing the earlier `igkt-dictionary-route` shim, remove the old plugin first so it does not keep serving the path.
 
-For a [discourse_docker](https://github.com/discourse/discourse_docker) `app.yml` hook, the plugins directory is empty at image build time:
-
-```yaml
-hooks:
-  after_code:
-    - exec:
-        cd: $home/plugins
-        cmd:
-          - git clone https://github.com/Seaserpent/igkt-dictionary-theme-component.git igkt-dictionary-theme-component
-          - ln -sfn igkt-dictionary-theme-component/plugins/igkt-dictionary-route igkt-dictionary-route
-```
-
-The plugin adds `GET /dictionary` and `GET /dictionary/` and renders Discourse’s `default/empty` template, which is the Ember application shell. Ember then follows the theme’s client route. A site setting, **`igkt_dictionary_route_enabled`** (default on), turns that route off without removing the plugin.
-
-Standard Discourse.org hosting does not install arbitrary plugins. On that hosting the same pass-through has to be added by the host. Self-hosted IGKT, or a plan that accepts this plugin, can install the folder above.
+If your host does not allow custom plugins, ask the host whether it can serve the app shell at `/dictionary`.
 
 The dictionary shows a clear message if neither data setting is configured, and a clear error if the topic cannot be read, the format is wrong, a part is missing, or the topic is too large to load.
 
@@ -162,13 +146,11 @@ Source ids in `ordbok.json` (`sources[lang][term] = [ids]`) are kept on each ent
 
 The default **sources note** (editable in settings) credits the sources listed under Licence, including Virittäjä, a condition of their written permission, covering incoming Finnish terms.
 
-## Why a plugin sits next to the theme
+## How direct navigation works
 
 Discourse treats theme JavaScript like plugin JavaScript, so `javascripts/discourse/dictionary-route-map.js` registers an Ember route at `/dictionary`. That route runs after the Ember app has booted. A fresh tab, a bookmark and a refresh are answered by Rails before Ember starts. Theme components cannot add Rails routes. The page, its settings and the topic loader stay in the theme component. The plugin only adds the server route.
 
-The smaller fix is the plugin in `plugins/igkt-dictionary-route`. It prepends `GET /dictionary` and renders `default/empty`, the same application shell Discourse uses for other client-rendered pages (`skip_before_action :check_xhr` is required, because a normal browser GET would otherwise be turned into an empty response before the action runs). Ember then enters the theme route. Pointing the path at `list#latest` would also boot Ember, and it would also run a topic-list query and is a poorer fit. The path is a literal in both the plugin and the route map. Route maps are parsed statically and cannot read a theme setting, so another community that wants a different URL changes those two files together.
-
-Login-required forums still redirect anonymous visitors to login, because the controller inherits Discourse’s normal login filter. The dictionary does not bypass it.
+The standalone plugin serves the app shell at the configured path and leaves Discourse’s normal login requirements intact. It does not create the Ember route or load dictionary data. A host that changes the path must also change the literal in the theme route map.
 
 ## Layout, keyboard and bad data
 

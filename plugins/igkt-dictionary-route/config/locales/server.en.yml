@@ -1,3 +1,0 @@
-en:
-  site_settings:
-    igkt_dictionary_route_enabled: "Serve the Discourse application at /dictionary so the knot dictionary theme component can be opened directly, bookmarked and refreshed."
