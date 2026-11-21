@@ -43,7 +43,7 @@ In-app navigation from the header book icon works with the theme alone. Direct v
 From git, which is the method that picks up later code updates:
 
 1. **Admin → Customize → Themes → Install → From a git repository**
-2. Paste `https://github.com/Seaserpent/igkt-dictionary-theme-component` (branch `main`).
+2. Paste `https://github.com/koloki-co/igkt-dictionary-theme-component` (branch `main`).
 3. Open the theme the forum actually uses (on IGKT that is **IGKT-default**) and add **IGKT Knot Dictionary** as a theme component.
 4. Set **`data_topic_id`** to the numeric id of the public data topic (see below). Optionally set **`data_url`** as a fallback.
 
@@ -53,7 +53,7 @@ To update the **code** later, use the theme’s **Check for updates** button, or
 
 ### 2. Server route for direct visits
 
-Install **Discourse Custom Route** as a separate plugin on a host that permits custom plugins. The standalone plugin is still in development and is not bundled with this component. Set `custom_route_path` to `/dictionary`, matching this component’s Ember route, then enable `custom_route_enabled`. If replacing the earlier `igkt-dictionary-route` shim, remove the old plugin first so it does not keep serving the path.
+Install [Discourse Custom Route](https://github.com/koloki-co/discourse-custom-route) as a separate plugin on a host that permits custom plugins. The plugin is currently a private development preview. Set `custom_route_path` to `/dictionary`, matching this component’s Ember route, then enable `custom_route_enabled`. If replacing the earlier `igkt-dictionary-route` shim, remove the old plugin first so it does not keep serving the path.
 
 If your host does not allow custom plugins, ask the host whether it can serve the app shell at `/dictionary`.
 
