@@ -6,12 +6,11 @@ import { fn } from "@ember/helper";
 import { htmlSafe } from "@ember/template";
 import { i18n } from "discourse-i18n";
 import {
-  LANGUAGE_NAMES,
-  LANGUAGE_ORDER,
   buildTableModel,
   adjustToLanguages,
   categoryCounts,
   defaultToLanguages,
+  dictionaryLanguages,
   firstTerm,
   formatTerms,
   prepareEntries,
@@ -37,17 +36,12 @@ export default class IgktDictionary extends Component {
   @tracked loadError = "";
   @tracked loadWarning = "";
 
-  languageOrder = LANGUAGE_ORDER;
-  languageNames = LANGUAGE_NAMES;
+  @tracked languageOrder = [];
+  @tracked languageNames = {};
   #loadAbort = typeof AbortController === "undefined" ? null : new AbortController();
 
   constructor() {
     super(...arguments);
-    const from =
-      (typeof settings !== "undefined" && settings.default_from_language) ||
-      "en";
-    this.from = LANGUAGE_ORDER.includes(from) ? from : "en";
-    this.to = defaultToLanguages(this.from);
     this.#load();
   }
 
@@ -70,12 +64,25 @@ export default class IgktDictionary extends Component {
       loadDictionary({
         topicId,
         url,
+        notePrefixes: configuredText("hidden_note_prefixes"),
         fetchJson: (path) => defaultFetchJson(path, undefined, fetchOptions),
         fetchText: (path) => defaultFetchText(path, undefined, fetchOptions),
       }),
       {
         ready: (entries) => {
-          this.entries = entries;
+          const { codes, names } = dictionaryLanguages(
+            entries,
+            configuredText("language_order"),
+            configuredText("language_labels")
+          );
+          const preferred = configuredText("default_from_language");
+          this.languageOrder = codes;
+          this.languageNames = names;
+          this.from = codes.includes(preferred) ? preferred : codes[0];
+          this.to = defaultToLanguages(this.from, codes);
+          this.entries = entries.filter((entry) =>
+            codes.some((code) => entry.terms[code]?.length)
+          );
           this.loadWarning =
             entries && Array.isArray(entries.warnings) ? entries.warnings.join(" ") : "";
           this.loadState = "ready";
@@ -90,7 +97,7 @@ export default class IgktDictionary extends Component {
   }
 
   get prepared() {
-    return prepareEntries(this.entries);
+    return prepareEntries(this.entries, this.languageOrder);
   }
 
   get categories() {
@@ -121,7 +128,7 @@ export default class IgktDictionary extends Component {
         shown: rows.length,
         total: this.total,
         missing,
-        language: LANGUAGE_NAMES[this.from],
+        language: this.languageNames[this.from],
       });
     }
     return i18n(themePrefix("count"), {
@@ -135,7 +142,7 @@ export default class IgktDictionary extends Component {
   }
 
   get pageSubtitle() {
-    return configuredText("page_subtitle") || i18n(themePrefix("subtitle"));
+    return configuredText("page_subtitle");
   }
 
   get sourcesNote() {
@@ -151,7 +158,7 @@ export default class IgktDictionary extends Component {
   @action
   changeFrom(event) {
     const from = event.target.value;
-    this.to = adjustToLanguages(this.from, from, this.to);
+    this.to = adjustToLanguages(this.from, from, this.to, this.languageOrder);
     this.from = from;
     this.letter = "";
   }
@@ -167,7 +174,7 @@ export default class IgktDictionary extends Component {
       }
       this.to = this.to.filter((item) => item !== lang);
     } else {
-      this.to = LANGUAGE_ORDER.filter(
+      this.to = this.languageOrder.filter(
         (item) => item === lang || this.to.includes(item)
       );
     }
@@ -200,7 +207,9 @@ export default class IgktDictionary extends Component {
     <div class="igkt-dictionary" id="igkt-dictionary-root">
       <header class="igkt-dictionary__header">
         <h1 id="igkt-dictionary-title">{{this.pageTitle}}</h1>
-        <p>{{this.pageSubtitle}}</p>
+        {{#if this.pageSubtitle}}
+          <p>{{this.pageSubtitle}}</p>
+        {{/if}}
       </header>
 
       {{#if (eq this.loadState "loading")}}

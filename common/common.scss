@@ -1,11 +1,3 @@
-/* IGKT Knot Dictionary
- *
- * All colours, radii and typography come from the active Discourse
- * colour scheme (CSS custom properties). Nothing is hardcoded, so the
- * page follows IGKT-default (and any future scheme, including dark mode)
- * automatically.
- */
-
 /*
  * Dictionary page only. {{hideApplicationSidebar}} removes the sidebar
  * from the layout and restores it when the route is left, so the header

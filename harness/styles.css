@@ -1,13 +1,21 @@
 /*
  * Preview-only stylesheet.
  *
- * Colours come from igkt-light.css (the official IGKT-light scheme).
  * Button, input and table rules below approximate Discourse's own
  * components so the screenshots look native. The theme component on
  * the forum uses the real Discourse .btn / input styles instead.
  */
 
 :root {
+  --primary: #222;
+  --primary-medium: #555;
+  --primary-low: #ddd;
+  --primary-very-low: #f4f4f4;
+  --primary-400: #777;
+  --secondary: #fff;
+  --tertiary: #176399;
+  --tertiary-hover: #114b74;
+  --danger: #a32020;
   --d-border-radius: 4px;
   --d-border-radius-large: calc(var(--d-border-radius) * 2);
   --d-button-border-radius: var(--d-border-radius);

@@ -1,22 +1,32 @@
-export const LANGUAGE_ORDER = ["en", "sv", "de", "fi", "fr", "es"];
-
-export const LANGUAGE_NAMES = {
-  en: "English",
-  sv: "Svenska",
-  de: "Deutsch",
-  fi: "Suomi",
-  fr: "Français",
-  es: "Español",
-};
-
-export const LANGUAGE_LOCALES = {
-  en: "en",
-  sv: "sv",
-  de: "de",
-  fi: "fi",
-  fr: "fr",
-  es: "es",
-};
+export function dictionaryLanguages(entries, order = "", labels = "") {
+  const available = new Set(entries.flatMap((entry) => Object.keys(entry.terms)));
+  const codes = [
+    ...new Set(order.split(/[\s,|]+/).filter((code) => available.has(code))),
+  ];
+  if (!codes.length) {
+    if (order.trim()) {
+      throw new Error("None of the languages in language_order were found in the dictionary data.");
+    }
+    codes.push(...available);
+  }
+  const overrides = new Map();
+  for (const item of labels.split("|")) {
+    const separator = item.indexOf("=");
+    if (separator > 0) {
+      const label = item.slice(separator + 1).trim();
+      if (label) {
+        overrides.set(item.slice(0, separator).trim(), label);
+      }
+    }
+  }
+  const names = Object.fromEntries(
+    codes.map((code) => {
+      const name = new Intl.DisplayNames([code], { type: "language" }).of(code);
+      return [code, overrides.get(code) || name];
+    })
+  );
+  return { codes, names };
+}
 
 const LIGATURE_FOLDS = [
   [/œ/g, "oe"],
@@ -65,7 +75,7 @@ export function notesElementId(id, occurrence = 0) {
 
 /**
  * A row click toggles notes unless it lands on a button or link,
- * or the visitor is selecting the knot name to copy it.
+ * or the visitor is selecting a term to copy it.
  */
 export function rowClickTogglesNotes(event) {
   const target = event && event.target;
@@ -110,10 +120,10 @@ export function formatTerms(entry, lang) {
  * the letter bar keeps the first character only.
  */
 export function letterOf(entry, lang) {
-  const first = firstTerm(entry, lang);
+  const first = firstTerm(entry, lang).normalize("NFC");
   const stripped = first.replace(/^[^\p{L}]+/u, "");
-  const locale = LANGUAGE_LOCALES[lang] || lang;
-  return stripped ? stripped.charAt(0).toLocaleUpperCase(locale).charAt(0) : "";
+  const firstLetter = [...stripped][0];
+  return firstLetter ? [...firstLetter.toLocaleUpperCase(lang)][0] : "";
 }
 
 /** Term used for sorting: leading non-letters (digits, punctuation) stripped. */
@@ -121,11 +131,13 @@ export function sortTerm(entry, lang) {
   return firstTerm(entry, lang).replace(/^[^\p{L}]+/u, "") || firstTerm(entry, lang);
 }
 
-export function prepareEntries(entries) {
+export function prepareEntries(entries, languages) {
   const seen = new Map();
   const used = new Set();
   return entries.map((entry) => {
-    const parts = LANGUAGE_ORDER.map((lang) => termsOf(entry, lang).join(" | "));
+    const parts = (languages ?? Object.keys(entry.terms)).map((lang) =>
+      termsOf(entry, lang).join(" | ")
+    );
     const id = entry && entry.id;
     let occurrence = seen.get(id) || 0;
     seen.set(id, occurrence + 1);
@@ -143,7 +155,7 @@ export function prepareEntries(entries) {
 }
 
 export function categoryCounts(entries) {
-  const counts = {};
+  const counts = Object.create(null);
   for (const entry of entries) {
     const cat = entry.category || "term";
     counts[cat] = (counts[cat] || 0) + 1;
@@ -153,22 +165,21 @@ export function categoryCounts(entries) {
     .map((id) => ({ id, count: counts[id] }));
 }
 
-export function defaultToLanguages(from) {
-  const rest = LANGUAGE_ORDER.filter((lang) => lang !== from);
-  return rest.length ? rest : [from === "en" ? "sv" : "en"];
+export function defaultToLanguages(from, languages) {
+  return languages.filter((lang) => lang !== from);
 }
 
 /**
  * When the source language changes, drop it from the To columns and
  * keep the previous source language visible as a translation column.
  */
-export function adjustToLanguages(previousFrom, nextFrom, currentTo) {
+export function adjustToLanguages(previousFrom, nextFrom, currentTo, languages) {
   let next = (currentTo || []).filter((lang) => lang !== nextFrom);
   if (previousFrom && previousFrom !== nextFrom && !next.includes(previousFrom)) {
     next = [...next, previousFrom];
   }
-  next = LANGUAGE_ORDER.filter((lang) => next.includes(lang));
-  return next.length ? next : defaultToLanguages(nextFrom);
+  next = languages.filter((lang) => next.includes(lang));
+  return next.length ? next : defaultToLanguages(nextFrom, languages);
 }
 
 /**
@@ -180,7 +191,7 @@ export function adjustToLanguages(previousFrom, nextFrom, currentTo) {
  */
 export function filterAndSort({ entries, from, cat, query, letter }) {
   const q = fold((query || "").trim());
-  const locale = LANGUAGE_LOCALES[from] || from;
+  const locale = from;
 
   const matchesFilters = (entry, requireSourceTerm) => {
     if (requireSourceTerm && !hasTerms(entry, from)) {

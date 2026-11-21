@@ -15,15 +15,20 @@ page_subtitle:
   default: ""
 
 default_from_language:
-  type: enum
-  default: en
-  choices:
-    - en
-    - sv
-    - de
-    - fi
-    - fr
-    - es
+  type: string
+  default: ""
+
+language_order:
+  type: string
+  default: ""
+
+language_labels:
+  type: string
+  default: ""
+
+hidden_note_prefixes:
+  type: string
+  default: ""
 
 data_topic_id:
   type: string
@@ -36,15 +41,4 @@ data_url:
 sources_note:
   type: string
   textarea: true
-  default: |
-    <p><strong>Sources.</strong>
-    <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a> (CC0);
-    <a href="https://en.wiktionary.org/" rel="noopener">Wiktionary</a> (CC BY-SA, with attribution);
-    <a href="https://fi.wikipedia.org/" rel="noopener">Finnish Wikipedia</a> (CC BY-SA, with attribution);
-    Hjalmar Öhrvall, <em>Om knutar</em> (1916);
-    J. Ezelius, “Knopnamn på olika språk” (used with permission for the IGKT forum);
-    Witcomb (1883);
-    Sam Svensson, <em>Handbok i sjömansarbete</em> (1941);
-    French review by Jean Bernard de Runz (JeanB);
-    Virittäjä (used with permission for the IGKT forum).</p>
-    <p>No machine translation is used. Corrections and additions are welcome in the IGKT forum.</p>
+  default: ""

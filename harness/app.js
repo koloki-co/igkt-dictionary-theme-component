@@ -1,11 +1,10 @@
 import SAMPLE_ENTRIES, { SAMPLE_NOTICE } from "../javascripts/discourse/lib/sample-data.js";
 import {
-  LANGUAGE_NAMES,
-  LANGUAGE_ORDER,
   adjustToLanguages,
   buildTableModel,
   categoryCounts,
   defaultToLanguages,
+  dictionaryLanguages,
   firstTerm,
   formatTerms,
   notesElementId,
@@ -18,23 +17,12 @@ import {
 } from "../javascripts/discourse/lib/dictionary-data.js";
 import { sanitizeSourcesHtml } from "../javascripts/discourse/lib/sources-html.js";
 
-const SOURCES_NOTE = `
-  <p><strong>Sources.</strong>
-  <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a> (CC0);
-  <a href="https://en.wiktionary.org/" rel="noopener">Wiktionary</a> (CC BY-SA, with attribution);
-  <a href="https://fi.wikipedia.org/" rel="noopener">Finnish Wikipedia</a> (CC BY-SA, with attribution);
-  Hjalmar Öhrvall, <em>Om knutar</em> (1916);
-  J. Ezelius, “Knopnamn på olika språk” (used with permission for the IGKT forum);
-  Witcomb (1883);
-  Sam Svensson, <em>Handbok i sjömansarbete</em> (1941);
-  French review by Jean Bernard de Runz (JeanB);
-  Virittäjä (used with permission for the IGKT forum).</p>
-  <p>No machine translation is used. Corrections and additions are welcome in the IGKT forum.</p>
-`;
+const SOURCES_NOTE = "<p>Invented example data.</p>";
+let { codes: LANGUAGE_ORDER, names: LANGUAGE_NAMES } = dictionaryLanguages(SAMPLE_ENTRIES);
 
 const state = {
   from: "en",
-  to: defaultToLanguages("en"),
+  to: defaultToLanguages("en", LANGUAGE_ORDER),
   cat: "",
   q: "",
   letter: "",
@@ -71,8 +59,7 @@ function render() {
     root.innerHTML = `
       <div class="igkt-dictionary" id="igkt-dictionary-root">
         <header class="igkt-dictionary__header">
-          <h1 id="igkt-dictionary-title">IGKT Multilingual Knot Dictionary</h1>
-          <p>Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated.</p>
+          <h1 id="igkt-dictionary-title">Dictionary</h1>
         </header>
         <p class="igkt-dictionary__status" role="status">Loading the dictionary…</p>
       </div>`;
@@ -82,8 +69,7 @@ function render() {
     root.innerHTML = `
       <div class="igkt-dictionary" id="igkt-dictionary-root">
         <header class="igkt-dictionary__header">
-          <h1 id="igkt-dictionary-title">IGKT Multilingual Knot Dictionary</h1>
-          <p>Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated.</p>
+          <h1 id="igkt-dictionary-title">Dictionary</h1>
         </header>
         <div class="igkt-dictionary__status is-error" role="alert"><p>${esc(loadError)}</p></div>
       </div>`;
@@ -176,8 +162,7 @@ function render() {
   root.innerHTML = `
     <div class="igkt-dictionary" id="igkt-dictionary-root">
       <header class="igkt-dictionary__header">
-        <h1 id="igkt-dictionary-title">IGKT Multilingual Knot Dictionary</h1>
-        <p>Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated.</p>
+        <h1 id="igkt-dictionary-title">Dictionary</h1>
       </header>
       ${notice}
       <div class="igkt-dictionary__main">
@@ -200,7 +185,7 @@ function render() {
 
   document.getElementById("from").onchange = (ev) => {
     const next = ev.target.value;
-    state.to = adjustToLanguages(state.from, next, state.to);
+    state.to = adjustToLanguages(state.from, next, state.to, LANGUAGE_ORDER);
     state.from = next;
     state.letter = "";
     render();
@@ -272,6 +257,9 @@ async function boot() {
       entries = SAMPLE_ENTRIES;
       banner = SAMPLE_NOTICE;
     }
+    ({ codes: LANGUAGE_ORDER, names: LANGUAGE_NAMES } = dictionaryLanguages(entries));
+    state.from = LANGUAGE_ORDER.includes("en") ? "en" : LANGUAGE_ORDER[0];
+    state.to = defaultToLanguages(state.from, LANGUAGE_ORDER);
     prepared = prepareEntries(entries);
     categories = categoryCounts(entries);
     loadWarning = Array.isArray(entries.warnings) ? entries.warnings.join(" ") : "";

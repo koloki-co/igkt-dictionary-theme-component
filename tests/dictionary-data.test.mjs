@@ -45,7 +45,11 @@ test("normalization accepts editorial and normalized formats using invented term
     notes: ["removed: obsolete example", "borttaget: obsolete example", "Public example note."],
   });
   assert.deepEqual(entry.terms, { en: ["paper moon knot (example)"] });
-  assert.deepEqual(entry.notes, ["Public example note."]);
+  assert.deepEqual(entry.notes, ["removed: obsolete example", "borttaget: obsolete example", "Public example note."]);
+  assert.deepEqual(
+    data.entriesFromPayloads([{ entries: [entry] }], "removed:|borttaget:")[0].notes,
+    ["Public example note."]
+  );
   assert.deepEqual(entry.sources, { en: { "paper moon knot (example)": ["example-source"] } });
   assert.deepEqual(data.normalizeEntry(entry), entry);
   assert.equal(data.normalizeEntry({ id: "example-empty" }), null);
@@ -328,12 +332,7 @@ test("sources footnote keeps credits and drops active markup", async () => {
   assert.doesNotMatch(note, /script|onclick|javascript/i);
 
   const settings = await readFile(new URL("../settings.yml", import.meta.url), "utf8");
-  const defaultNote = settings.slice(settings.indexOf("sources_note:"));
-  const kept = sanitizeSourcesHtml(defaultNote);
-  assert.match(kept, /Virittäjä/);
-  assert.match(kept, /Ezelius/);
-  assert.match(kept, /Wikidata/);
-  assert.match(kept, /href="https:\/\/www.wikidata.org\/"/);
+  assert.match(settings, /sources_note:\s+type: string\s+textarea: true\s+default: ""/);
 });
 
 test("preview server does not expose Git, private workspace, or sibling paths", async (t) => {

@@ -10,17 +10,11 @@ import { createMockForumServer } from "./mock-forum.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const themeRoot = join(here, "..");
-const forumShotDir = join(themeRoot, "..", "igkt-dictionary-forum-data", "screenshots");
-const sampleShotDir = join(themeRoot, "screenshots");
+const outDir = join(themeRoot, ".private", "captures");
 const chromePath = process.env.CHROME_PATH || "/usr/bin/google-chrome";
 
-const useForum = process.argv.includes("--forum") || process.env.IGKT_SHOT_DATA === "forum";
-const outDir = useForum ? forumShotDir : sampleShotDir;
-
-const { base, close } = await createMockForumServer({ listen: true });
-const pageUrl = useForum
-  ? `${base}/harness/index.html?topic=99999`
-  : `${base}/harness/index.html`;
+const { base, close } = await createMockForumServer({ listen: true, forumDir: null });
+const pageUrl = `${base}/harness/index.html`;
 console.log("serving", pageUrl);
 
 const browser = await puppeteer.launch({

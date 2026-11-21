@@ -1,27 +1,25 @@
 /**
- * Load and parse the Knot Dictionary word list from a Discourse topic
+ * Load a dictionary from a Discourse topic
  * or a URL. The theme does not bundle the word list.
  *
  * Topic format: one or more posts containing a fenced
- * ```igkt-dictionary
+ * ```dictionary
  * {"v":1,"part":1,"parts":2}
  * {"id":"...","category":"...","terms":{...}}
  * ```
  * block (JSONL). A raw JSON array is also accepted, including the
  * compact dictionary.json produced by tools/export_data.py, and a
- * legacy ordbok.json object list is normalised the same way.
+ * records with source maps are also accepted.
  */
 
 export const FORMAT_VERSION = 1;
-export const FENCE_LANG = "igkt-dictionary";
-export const LANGS = ["en", "sv", "de", "fi", "fr", "es"];
+export const FENCE_LANG = "dictionary";
 /** Closed data topics are a handful of posts. Replies beyond this are refused. */
 export const MAX_TOPIC_POSTS = 30;
 export const MAX_BODY_CHARS = 1_000_000;
 export const FETCH_TIMEOUT_MS = 20_000;
 
-const REMOVED_NOTE_RE = /\b(borttaget|borttagna|removed)\b/i;
-const FENCE_LANGS = new Set(["", FENCE_LANG, "json", "jsonl"]);
+const FENCE_LANGS = new Set(["", FENCE_LANG, "igkt-dictionary", "json", "jsonl"]);
 
 export class DictionaryLoadError extends Error {
   constructor(code, message) {
@@ -31,15 +29,23 @@ export class DictionaryLoadError extends Error {
   }
 }
 
-export function isRemovalNote(note) {
-  return typeof note === "string" && REMOVED_NOTE_RE.test(note);
-}
-
-export function publicNotes(notes) {
+export function publicNotes(notes, hiddenPrefixes = []) {
   if (!Array.isArray(notes)) {
     return [];
   }
-  return notes.filter((n) => typeof n === "string" && n && !isRemovalNote(n));
+  return notes.filter(
+    (note) =>
+      typeof note === "string" && note.trim() &&
+      !hiddenPrefixes.some((prefix) => note.trimStart().toLowerCase().startsWith(prefix))
+  );
+}
+
+function isLanguageCode(code) {
+  try {
+    return Intl.getCanonicalLocales(code).length === 1;
+  } catch {
+    return false;
+  }
 }
 
 function cleanSources(sources) {
@@ -80,15 +86,15 @@ function assertFormatVersion(version) {
   }
 }
 
-export function normalizeEntry(raw) {
+export function normalizeEntry(raw, hiddenPrefixes) {
   if (!raw || typeof raw !== "object") {
     return null;
   }
   const sources = raw.sources && typeof raw.sources === "object" ? raw.sources : {};
   let terms = raw.terms;
-  if (!terms || typeof terms !== "object") {
+  if (!terms || typeof terms !== "object" || Array.isArray(terms)) {
     terms = {};
-    for (const lang of LANGS) {
+    for (const lang of Object.keys(sources)) {
       const langMap = sources[lang];
       if (langMap && typeof langMap === "object" && !Array.isArray(langMap)) {
         const keys = Object.keys(langMap).filter(Boolean);
@@ -107,7 +113,7 @@ export function normalizeEntry(raw) {
   }
   const cleanTerms = {};
   for (const [lang, val] of Object.entries(terms)) {
-    if (Array.isArray(val)) {
+    if (isLanguageCode(lang) && Array.isArray(val)) {
       const values = val.filter((term) => typeof term === "string" && term.trim());
       if (values.length) {
         cleanTerms[lang] = values;
@@ -119,13 +125,13 @@ export function normalizeEntry(raw) {
   }
   const entry = {
     id: raw.id || "",
-    category: raw.category || "term",
+    category: typeof raw.category === "string" && raw.category.trim() ? raw.category : "term",
     terms: cleanTerms,
   };
   if (raw.wikidata) {
     entry.wikidata = raw.wikidata;
   }
-  const notes = publicNotes(raw.notes);
+  const notes = publicNotes(raw.notes, hiddenPrefixes);
   if (notes.length) {
     entry.notes = notes;
   }
@@ -303,7 +309,7 @@ export function assembleParts(partResults) {
   if (!usable.length) {
     throw new DictionaryLoadError(
       "parse",
-      "No dictionary data was found in the topic or URL. Check that the posts contain an igkt-dictionary code block."
+      "No dictionary data was found in the topic or URL. Check that the posts contain a dictionary code block."
     );
   }
   const numbered = usable.filter((p) => p.part != null || p.parts != null);
@@ -356,12 +362,16 @@ export function assembleParts(partResults) {
   return entries;
 }
 
-export function entriesFromPayloads(partResults) {
+export function entriesFromPayloads(partResults, notePrefixes = "") {
   const raw = assembleParts(partResults);
+  const hiddenPrefixes = notePrefixes
+    .split("|")
+    .map((prefix) => prefix.trim().toLowerCase())
+    .filter(Boolean);
   const out = [];
   let skipped = 0;
   for (const item of raw) {
-    const entry = normalizeEntry(item);
+    const entry = normalizeEntry(item, hiddenPrefixes);
     if (entry) {
       out.push(entry);
     } else if (item && typeof item === "object") {
@@ -385,7 +395,7 @@ export function entriesFromPayloads(partResults) {
 }
 
 export function hasDictionaryFence(text) {
-  return /```[ \t]*igkt-dictionary\b/i.test(text || "");
+  return /^[ \t]*`{3,}[ \t]*(?:igkt-)?dictionary(?=[ \t\r\n]|$)/im.test(text || "");
 }
 
 /**
@@ -450,7 +460,7 @@ function httpError(status, kind) {
   );
 }
 
-export async function loadFromTopic(topicId, { fetchJson, fetchText }) {
+export async function loadFromTopic(topicId, { fetchJson, fetchText, notePrefixes }) {
   const id = String(topicId == null ? "" : topicId).trim();
   if (!/^\d+$/.test(id)) {
     throw new DictionaryLoadError(
@@ -490,7 +500,7 @@ export async function loadFromTopic(topicId, { fetchJson, fetchText }) {
       } else if (hasDictionaryFence(text)) {
         throw new DictionaryLoadError(
           "malformed",
-          `Post ${n} contains an igkt-dictionary block that is not valid JSON or JSONL.`
+          `Post ${n} contains a dictionary block that is not valid JSON or JSONL.`
         );
       }
     } catch (err) {
@@ -512,10 +522,10 @@ export async function loadFromTopic(topicId, { fetchJson, fetchText }) {
       );
     }
   }
-  return entriesFromPayloads(results);
+  return entriesFromPayloads(results, notePrefixes);
 }
 
-export async function loadFromUrl(url, { fetchText }) {
+export async function loadFromUrl(url, { fetchText, notePrefixes }) {
   const href = String(url == null ? "" : url).trim();
   if (!href) {
     throw new DictionaryLoadError("unconfigured", "data_url is empty.");
@@ -540,15 +550,15 @@ export async function loadFromUrl(url, { fetchText }) {
     if (hasDictionaryFence(text)) {
       throw new DictionaryLoadError(
         "malformed",
-        "The dictionary data URL contains an igkt-dictionary block that is not valid JSON or JSONL."
+      "The dictionary data URL contains a dictionary block that is not valid JSON or JSONL."
       );
     }
     throw new DictionaryLoadError(
       "parse",
-      "The dictionary data URL did not contain a JSON array or an igkt-dictionary code block."
+      "The dictionary data URL did not contain a JSON array or a dictionary code block."
     );
   }
-  return entriesFromPayloads([parsed]);
+  return entriesFromPayloads([parsed], notePrefixes);
 }
 
 /**
@@ -588,19 +598,19 @@ export async function applyDictionaryLoad(component, pending, handlers) {
  * Load entries from a topic and/or a URL. The topic is tried first when
  * both are set; the URL is the fallback.
  */
-export async function loadDictionary({ topicId, url, fetchJson, fetchText }) {
+export async function loadDictionary({ topicId, url, fetchJson, fetchText, notePrefixes }) {
   const hasTopic = String(topicId == null ? "" : topicId).trim() !== "";
   const hasUrl = String(url == null ? "" : url).trim() !== "";
   if (!hasTopic && !hasUrl) {
     throw new DictionaryLoadError(
       "unconfigured",
-      "The Knot Dictionary has no data source yet. An administrator must set data_topic_id (preferred) or data_url in the theme component settings."
+      "The dictionary has no data source. Set data_topic_id or data_url in the theme component settings."
     );
   }
   let topicError = null;
   if (hasTopic) {
     try {
-      return await loadFromTopic(topicId, { fetchJson, fetchText });
+      return await loadFromTopic(topicId, { fetchJson, fetchText, notePrefixes });
     } catch (err) {
       if (!hasUrl) {
         throw err;
@@ -609,7 +619,7 @@ export async function loadDictionary({ topicId, url, fetchJson, fetchText }) {
     }
   }
   try {
-    return await loadFromUrl(url, { fetchText });
+    return await loadFromUrl(url, { fetchText, notePrefixes });
   } catch (err) {
     if (topicError) {
       throw new DictionaryLoadError(

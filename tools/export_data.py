@@ -1,62 +1,46 @@
 #!/usr/bin/env python3
-"""Convert ordbok.json into forum-ready posts and a single JSON file.
+"""Convert dictionary entries into forum-ready posts and a single JSON file.
 
 The theme component does not bundle the word list. It loads the data at
 runtime from a Discourse topic (same-origin /raw/<topic>/<post>) or from
 a URL. This tool writes the exact text to paste into those posts.
 
 Usage:
-  python3 tools/export_data.py
-  python3 tools/export_data.py /path/to/ordbok.json --outdir /path/to/dir
-  python3 tools/export_data.py ordbok.json --outdir ./out --max-chars 30000
-
-The source file is read only. Do not run enrich.py or build.py in the
-ordbok-igkt / igkt-ordbok trees; those overwrite ordbok.json.
+  python3 tools/export_data.py entries.json --outdir .private/forum-data
 
 Output:
   post-1.md, post-2.md, ...   markdown to paste into successive posts
   dictionary.json             full list, for the optional data_url setting
   manifest.json               sizes, part counts, source md5
 
-Format of each data fence (JSONL inside an igkt-dictionary code block):
+Format of each data fence (JSONL inside a dictionary code block):
 
   {"v":1,"part":1,"parts":2}
   {"id":"example-0001","category":"term","terms":{...}}
   ...
 
-Live terms come from sources[lang][term]. Notes that record a removed
-term (borttaget / borttagna / removed) are dropped so they are not shown
-as if they were current terms.
+Supply only notes that may be published on the forum.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 
-DEFAULT_SRC = Path("/workspace/ordbok-igkt/files/ordbok.json")
 # Headroom under Discourse's default max_post_length (32_000).
 DEFAULT_MAX_CHARS = 30_000
-LANGS = ("en", "sv", "de", "fi", "fr", "es")
-REMOVED_NOTE_RE = re.compile(r"\b(borttaget|borttagna|removed)\b", re.IGNORECASE)
 FORMAT_VERSION = 1
-FENCE = "igkt-dictionary"
+FENCE = "dictionary"
 
-POST1_INTRO = """# IGKT Knot Dictionary data (part {part} of {parts})
-
-This topic holds the word list for the Knot Dictionary at `/dictionary`.
-The word list is **not** covered by the theme component's MIT licence; it stays on the IGKT forum.
-
-Sources: Wikidata (CC0); Wiktionary and Finnish Wikipedia (CC BY-SA, with attribution); J. Ezelius and Virittäjä (used with permission for the IGKT forum); Hjalmar Öhrvall, *Om knutar* (1916); Witcomb (1883); Sam Svensson, *Handbok i sjömansarbete* (1941); French review by Jean Bernard de Runz (JeanB). No machine translation is used.
+POST1_INTRO = """# Dictionary data (part {part} of {parts})
 
 Please do not add ordinary replies here. To update the list, edit the fenced `{fence}` blocks below. Moderators can edit this topic when it is a wiki.
 
 """
 
-LATER_INTRO = """# IGKT Knot Dictionary data (part {part} of {parts})
+LATER_INTRO = """# Dictionary data (part {part} of {parts})
 
 Continuation of the word list. Edit the fenced `{fence}` block only; do not add ordinary replies.
 
@@ -64,17 +48,19 @@ Continuation of the word list. Edit the fenced `{fence}` block only; do not add 
 
 
 def public_notes(notes) -> list[str]:
-    if not notes:
+    if not isinstance(notes, list):
         return []
-    return [n for n in notes if isinstance(n, str) and not REMOVED_NOTE_RE.search(n)]
+    return [note for note in notes if isinstance(note, str) and note.strip()]
 
 
 def normalize_entry(raw: dict) -> dict:
-    sources = raw.get("sources") or {}
+    sources = raw.get("sources")
+    if not isinstance(sources, dict):
+        sources = {}
     terms = raw.get("terms")
     if not isinstance(terms, dict):
         terms = {}
-        for lang in LANGS:
+        for lang in sources:
             lang_map = sources.get(lang) or {}
             if isinstance(lang_map, dict) and lang_map:
                 terms[lang] = [t for t in lang_map.keys() if t]
@@ -84,7 +70,7 @@ def normalize_entry(raw: dict) -> dict:
     # Copy lists only. list() on a string splits the term into characters.
     # This matches dictionary-data.js, which keeps array values and drops the rest.
     terms = {
-        lang: list(val)
+        lang: [term for term in val if isinstance(term, str) and term.strip()]
         for lang, val in terms.items()
         if isinstance(val, list) and val
     }
@@ -222,7 +208,7 @@ def export(src: Path, outdir: Path, max_chars: int) -> dict:
         "source": str(src),
         "source_md5": md5,
         "entries": len(entries),
-        "format": "igkt-dictionary-jsonl",
+        "format": "dictionary-jsonl",
         "format_version": FORMAT_VERSION,
         "max_chars": max_chars,
         "posts": posts,
@@ -243,9 +229,7 @@ def main(argv: list[str]) -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "source",
-        nargs="?",
-        default=str(DEFAULT_SRC),
-        help=f"ordbok.json (default: {DEFAULT_SRC})",
+        help="JSON file containing a list of dictionary entries",
     )
     p.add_argument("--outdir", required=True, help="Directory to write post-N.md and dictionary.json")
     p.add_argument(

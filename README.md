@@ -1,188 +1,58 @@
-# IGKT Knot Dictionary
+# Multilingual Dictionary for Discourse
 
-A Discourse **theme component** that shows a multilingual knot, ropework and tools glossary at `/dictionary`. Niclas approves MIT publication of the code. The word list stays on the IGKT forum under separate permissions and is not in this repository. See [review.md](review.md) for the import boundary and [roadmap.md](roadmap.md) for what still needs a live Discourse check.
-
-Private inputs, exports, recovery files and captures belong in the root gitignored `.private/` folder and must not be included in shared archives. New review documentation is CC-BY-SA-4.0; code remains MIT and forum data retains its source-specific terms.
-
-It is meant to be installed by a forum administrator. It does not post. The word list is loaded at runtime from a forum topic. The plugin only serves the Ember application shell for `/dictionary`; it does not read or store the word list.
-
-This is a glossary. It does not look up Ashley Book of Knots numbers.
-
-The page follows the standalone IGKT dictionary's behaviour: English UI, a source-language selector, language column toggles, one accent-insensitive search across all languages, an A–Z bar (with Å Ä Ö after Z when the source language is Swedish), category filters, a hit counter, a table that becomes cards on a narrow screen, expandable notes, and a sources footnote.
-
-Colours, typography and controls come from the active Discourse theme. The component uses only Discourse CSS custom properties (`var(--primary)`, `var(--tertiary)`, `var(--header_background)`, `var(--d-border-radius)` and so on) and Discourse button classes (`btn`, `btn-default`, `btn-primary`, `btn-small`). On discourse.igkt.net that means the IGKT-default / IGKT-light scheme (navy tertiary, gold header). There are no Seaserpent.se colours, and a dark scheme would be picked up automatically if the forum ever enabled one.
-
-Local invented-data tests are available below. The supplied ZIP claims a headless preview; that has not been independently verified here. **V2 has not been installed or tested on a live Discourse site.**
-
-## Licence
-
-The **theme component code** in this repository is released under the [MIT License](LICENSE). Copyright (c) 2026 Niclas Andersson and contributors.
-
-**The word list is not covered by the MIT licence and is not included in this repository.** It stays on the IGKT forum. The data draws on:
-
-- Wikidata (CC0)
-- Wiktionary (CC BY-SA, with attribution)
-- Finnish Wikipedia (CC BY-SA, with attribution)
-- J. Ezelius, used with permission for the IGKT forum
-- Virittäjä, used with permission for the IGKT forum (credit this source even before those Finnish terms are added)
-- Hjalmar Öhrvall, *Om knutar* (1916)
-- Witcomb (1883)
-- Sam Svensson, *Handbok i sjömansarbete* (1941)
-- French review by Jean Bernard de Runz (JeanB)
-
-No machine translation is used.
-
-A tiny, clearly labelled set of **invented** example entries lives under `javascripts/discourse/lib/sample-data.js` for tests and the local harness only. That file is not the IGKT word list.
+A theme component that turns a Discourse topic into a searchable multilingual dictionary at `/dictionary`. You supply the word list; the component includes no dictionary data.
 
 ## Install
 
-In-app navigation from the header book icon works with the theme alone. Direct visits, bookmarks and refreshes also require a separate server route. See [the roadmap](roadmap.md) for tested scope; a minimum supported Discourse version has not been verified.
+1. In Discourse admin, install this repository as a theme component from `https://github.com/koloki-co/igkt-dictionary-theme-component` and attach it to the theme your visitors use.
+2. Create a topic with the entries in a `dictionary` code block (see below). Set `data_topic_id` in the component settings. Visitors need permission to read the topic and its data posts.
+3. Open the dictionary from the book icon in the header. On the dictionary page the icon becomes a **Back to forum** arrow.
 
-### 1. Theme component
+For bookmarks, refreshes and direct visits, install [Discourse Custom Route](https://github.com/koloki-co/discourse-custom-route) separately. In **Admin → Settings**, add `/dictionary` to `custom_route_paths` and turn on `custom_route_enabled`. The component's Ember route is fixed at `/dictionary`; the plugin setting does not rename it. A host that doesn't allow custom plugins must supply the server route separately.
 
-From git, which is the method that picks up later code updates:
+## Data format
 
-1. **Admin → Customize → Themes → Install → From a git repository**
-2. Paste `https://github.com/koloki-co/igkt-dictionary-theme-component` (branch `main`).
-3. Open the theme the forum actually uses (on IGKT that is **IGKT-default**) and add **IGKT Knot Dictionary** as a theme component.
-4. Set **`data_topic_id`** to the numeric id of the public data topic (see below). Optionally set **`data_url`** as a fallback.
-
-A zip of this repository can be uploaded with **Install → From your device** instead. Do not put generated forum posts or `dictionary.json` in that zip.
-
-To update the **code** later, use the theme’s **Check for updates** button, or upload a new zip. To update the **word list**, edit the data topic. No theme rebuild is required for a word-list edit.
-
-### 2. Server route for direct visits
-
-Install [Discourse Custom Route](https://github.com/koloki-co/discourse-custom-route) as a separate plugin on a host that permits custom plugins. The plugin is currently a private development preview. Set `custom_route_path` to `/dictionary`, matching this component’s Ember route, then enable `custom_route_enabled`. If replacing the earlier `igkt-dictionary-route` shim, remove the old plugin first so it does not keep serving the path.
-
-If your host does not allow custom plugins, ask the host whether it can serve the app shell at `/dictionary`.
-
-The dictionary shows a clear message if neither data setting is configured, and a clear error if the topic cannot be read, the format is wrong, a part is missing, or the topic is too large to load.
-
-## How the word list is hosted on the forum
-
-The component does not bundle the dictionary. It loads the list at runtime from the forum. The routing plugin is not involved in that fetch.
-
-**Preferred method:** put the compact word list in **wiki posts of one publicly readable topic** (as many parts as the exporter produces), and set `data_topic_id` to that topic’s id. The component reads `/t/{id}.json` and then `/raw/{id}/{post_number}` for the post numbers in that topic (same origin, so there is no CORS issue). A post is parsed when it contains an `igkt-dictionary`, `json` or `jsonl` fenced code block, a fenced block with no language tag, or a body that is raw JSON (a JSON array, a JSON object with an `entries` array, or JSONL with one object per line). Ordinary replies that contain none of those are ignored.
-
-**Why not an attachment or a theme upload?** Official Discourse hosting often serves uploads from an S3/CDN origin that does not send CORS headers. A browser `fetch` of that file from the forum can fail. A JSON attachment also needs `json` in `authorized_extensions`. A post body fetched same-origin avoids both problems, and a moderator can edit a wiki post without admin rights.
-
-**Fallback:** `data_url` may point at a same-origin path, or any URL whose body uses one of those same formats. If both settings are filled, the topic is tried first and the URL is used if the topic cannot be read.
-
-### What to create
-
-1. Choose a **publicly readable** category (Docs, or another category that every dictionary user can see, including anonymous visitors if `/dictionary` is public).
-2. Create **one topic**, for example titled “IGKT Knot Dictionary data”. Make every data post a **wiki** post so moderators can edit them. Close the topic to ordinary replies if the forum allows it (staff can still add or edit the data posts).
-3. Paste every generated `post-N.md` file, in order, as successive posts:
-   - first post: `post-1.md` (intro plus part 1 of N)
-   - following posts: `post-2.md`, `post-3.md`, … (the remaining parts)
-4. Confirm that an anonymous window can open the topic. If the topic is staff-only, regular users will see a load error on `/dictionary`.
-5. An administrator sets **`data_topic_id`** to the topic id (the number in `/t/…/12345`).
-
-The exporter keeps per-term `sources` ids in the compact list and splits it into as many posts as needed so that each post stays under 30,000 characters, leaving headroom under Discourse’s default `max_post_length` of 32,000. With sources included, the full compact JSON is about 105,000 characters and currently needs **four posts**. An export that omitted `sources` used to fit in two posts (about 55,000 characters); do not use that form if you want per-term attribution. Do not raise `max_post_length` just for this if multiple posts already work. If you later add enough terms that a fifth post appears in the export, paste that too and keep every part in the topic — a missing part is reported on the page.
-
-### Generating the paste-ready files
-
-From a checkout of this component, with a current `ordbok.json` (the master file, treated as read-only):
-
-```bash
-python3 tools/export_data.py /path/to/ordbok.json --outdir .private/forum-data
-```
-
-This writes `post-1.md`, `post-2.md`, … (one file per part), `dictionary.json` (the full list, for an optional `data_url`) and `manifest.json` (sizes). Each `post-N.md` is kept under 30,000 characters, leaving headroom under the 32,000 default. The number of posts depends on the size of the list with per-term `sources` included.
-
-These exports are forum data, not MIT code. Never commit them, use them as public test fixtures, or package them with a code release. Publicly readable does not mean freely redistributable.
-
-Treat `/workspace/ordbok-igkt/files/ordbok.json` as **read-only**. Do **not** run `enrich.py` or `build.py` inside `/workspace/ordbok-igkt` or `/workspace/igkt-ordbok` — those scripts overwrite `ordbok.json`.
-
-To publish an update, regenerate the files and edit the wiki posts in place, keeping the same topic id.
-
-Each data fence looks like this (JSONL):
+Use one JSON record per line. Give each entry a stable `id` and a `terms` object with language tags as keys and arrays of terms as values. `category` and `notes` are optional. Category names come from the entries, not Discourse categories.
 
 ````markdown
-```igkt-dictionary
-{"v":1,"part":1,"parts":2}
-{"id":"example-0001","category":"term","terms":{...}}
+```dictionary
+{"v":1,"part":1,"parts":1}
+{"id":"example-1","category":"Illustration","terms":{"ja":["星"],"en":["star"],"pt-BR":["estrela"]}}
 ```
 ````
 
-Live terms are taken from `sources[lang][term]` when you export from `ordbok.json`. Notes that record a removed term (for example `borttaget` / `borttagna` / `removed`) are dropped so they cannot be mistaken for current terms. The component also applies that filter if someone pastes a raw `ordbok.json`.
+For a larger list, split the data across consecutive posts, number the parts from 1 and use the same total in every header. The exporter reads a JSON array and writes paste-ready `post-N.md` files and a `dictionary.json` file:
 
-## Settings
-
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `data_topic_id` | (empty) | Numeric id of the public topic that holds the word list. Preferred data source. |
-| `data_url` | (empty) | Optional fallback URL to a JSON array or an `igkt-dictionary` document. |
-| `show_header_link` | true | Adds a book icon in the site header that opens the dictionary **in-app** (no full page reload). |
-| `header_link_title` | Dictionary | Tooltip and accessible name for that icon. |
-| `page_title` | (empty) | Optional title. Blank uses the built-in “IGKT Multilingual Knot Dictionary”. |
-| `page_subtitle` | (empty) | Optional subtitle. Blank uses the built-in subtitle. |
-| `default_from_language` | en | Initial value of the **From** selector (`en`, `sv`, `de`, `fi`, `fr`, `es`). |
-| `sources_note` | (see below) | Footer credit. A small set of HTML tags is kept (`p`, `a`, `strong`, `em`, `br`); other markup is removed. Keep the Virittäjä credit. |
-
-If you prefer the existing **Custom Header Links** component instead of the built-in icon, turn `show_header_link` off and add a link with URL `/dictionary`. A plain `href` does a full page load, which works once the routing plugin is installed.
-
-## Sources
-
-Source ids in `ordbok.json` (`sources[lang][term] = [ids]`) are kept on each entry when the export includes them. The dictionary page does not look those ids up, and it does not show them in the table. Visitors see the footer credit from the `sources_note` setting.
-
-`javascripts/discourse/lib/ordbok-sources.js` is an editor reference for the same ids and the labels below. The theme never imports that file, so editing it does not change the page. It is kept so the list has one place in the code to check when an id is added.
-
-| Id | Label |
-| --- | --- |
-| `wikidata` | Wikidata |
-| `wiktionary-en` | Wiktionary |
-| `fi.wikipedia` | Finnish Wikipedia |
-| `ohrvall` | Öhrvall (1916) |
-| `ezelius` | Ezelius |
-| `witcomb1883` | Witcomb (1883) |
-| `svensson1941` | Svensson (1941) |
-| `jeanb` | Jean Bernard de Runz (JeanB) |
-| `virittaja` | Virittäjä |
-| `niclas`, `egen` | IGKT (own additions) |
-
-`virittaja` is already in that reference list and in the default sources note. Adding Finnish terms under that id does not need a code change for the footnote to keep crediting Virittäjä.
-
-The default **sources note** (editable in settings) credits the sources listed under Licence, including Virittäjä, a condition of their written permission, covering incoming Finnish terms.
-
-## How direct navigation works
-
-Discourse treats theme JavaScript like plugin JavaScript, so `javascripts/discourse/dictionary-route-map.js` registers an Ember route at `/dictionary`. That route runs after the Ember app has booted. A fresh tab, a bookmark and a refresh are answered by Rails before Ember starts. Theme components cannot add Rails routes. The page, its settings and the topic loader stay in the theme component. The plugin only adds the server route.
-
-The standalone plugin serves the app shell at the configured path and leaves Discourse’s normal login requirements intact. It does not create the Ember route or load dictionary data. A host that changes the path must also change the literal in the theme route map.
-
-## Layout, keyboard and bad data
-
-On `/dictionary` the template calls Discourse’s `hideApplicationSidebar` helper, which removes the sidebar while the page is shown and puts it back on the way out. The header, the rest of the forum, and the “Powered by Discourse” credit stay. A `dictionary-page` body class is a fallback for the column width: it zeroes `--d-sidebar-width` and hides `.sidebar-wrapper` only while that class is present. It does not rename Discourse’s grid areas (`content` and `below-content`), so the credit stays under the dictionary. Below Discourse’s `md` breakpoint it leaves the single content column in place. It does not restyle other pages and it does not hide the credit.
-
-On a narrow screen the column headings are hidden and each cell shows its language code as text in the page. Each cell has a `lang` attribute for that language. The code is hidden on a wide screen, where the column headings remain.
-
-Language toggles, the letter bar and note disclosure are buttons. Notes use `aria-expanded` and `aria-controls`, and Enter or Space activates the focused control. The selected letter and the selected translation columns use `aria-pressed`.
-
-The loader accepts format version 1 (`{"v":1,"part":1,"parts":2}` as JSONL, or a JSON array). A different version, a broken `igkt-dictionary` fence, a missing part, an unreadable topic (including HTTP 403 and 404), a response over 1,000,000 characters, or a request that exceeds 20 seconds is shown on the page. A deleted post number is skipped when Discourse’s topic JSON already lists the surviving post numbers; `posts_count` alone is not treated as the last post number. Topics longer than 30 posts are refused, so a data topic should be closed to ordinary replies. Records with no usable terms are skipped and counted in a notice; if nothing usable remains, the page shows an error instead of an empty table. Per-term `sources` ids are kept on each entry when the topic includes them. The footer credit is the visitor-facing acknowledgement.
-
-## Other install notes
-
-- **Permissions.** Everyone who should see the dictionary must be able to read the data topic, including anonymous visitors when `/dictionary` is public. A staff-only topic produces a load error for everyone else.
-- **`max_post_length`.** If a site has lowered this below about 30,000 characters, regenerate the export with a smaller `--max-chars` so more posts are produced, then paste every part. A missing part is reported on the page.
-- **CORS on `data_url`.** Only a concern for a file on another origin (S3/CDN). Prefer `data_topic_id`.
-- **`themePrefix` / `settings`.** Discourse’s theme compiler injects these. They supply translations and the settings above.
-- **Search.** Matching folds case, accents, and the ligatures œ/oe, æ/ae, ß/ss and the common ﬁ/ﬂ forms.
-
-## Local tests and preview
-
-```bash
-node --test tests/*.test.mjs
-node harness/test.mjs
+```sh
+python3 tools/export_data.py entries.json --outdir .private/forum-data
 ```
 
-Tests require Node.js and Python 3. They use invented sample data only. The HTTP round-trip test generates temporary synthetic forum posts with the exporter and loads them through `/t/{id}.json` and `/raw/{id}/{n}`, with no private source files or real forum access. These tests do not compile or render a Discourse theme.
+The old `igkt-dictionary` fence still works. An optional `data_url` can serve a JSON array or dictionary document instead. Keep the data topic closed to ordinary replies and limit editing to the people responsible for the dictionary. Publish only the content you intend readers to see, including notes.
 
-To preview the page in a browser:
+## Theme component settings
 
-```bash
+| Setting | Purpose |
+| --- | --- |
+| `data_topic_id` | Topic containing the data. |
+| `data_url` | Optional fallback if the topic is unset or cannot be loaded. Prefer a same-origin URL. |
+| `page_title`, `page_subtitle` | Title and subtitle. Defaults to “Dictionary” with no subtitle. |
+| `language_order` | Language tags to display, in order, such as `ja, en, pt-BR`. Blank uses the languages in the data. Use the same spelling and case as the data. |
+| `language_labels` | Overrides for the built-in language names, such as `ja=日本語\|en=English`. |
+| `default_from_language` | Initial source language. Blank uses the first displayed language. |
+| `sources_note` | Footer for source credits and licence terms. Blank by default. Supports links and limited formatting. |
+| `hidden_note_prefixes` | Optional case-insensitive note prefixes separated by a pipe (`\|`). This only hides matching notes in the dictionary display. It doesn't remove them from the data topic. |
+| `show_header_link`, `header_link_title` | Show the header control and set its opening label. |
+
+## Development
+
+```sh
+node --test tests/*.test.mjs
+node harness/test.mjs
 node harness/serve.mjs
 ```
 
-The default preview uses the invented sample entries and binds only to `127.0.0.1`. To deliberately preview local forum exports, run `IGKT_FORUM_DATA="$PWD/.private/forum-data" node harness/serve.mjs` and append `?topic=99999` to the preview URL. This makes that configured directory available through the mock server; do not expose the server publicly or commit data-bearing captures. Hidden paths such as `.git/` and `.private/` are blocked by the static file handler.
+Tests and the loopback preview use invented data by default. Do not add real word lists or data-bearing screenshots to Git. See [the roadmap](roadmap.md) for integration checks and [IGKT setup](docs/igkt-setup.md) for the original deployment's settings.
+
+## Licence
+
+Code: [MIT](LICENSE), Niclas Andersson and contributors. New documentation: CC BY-SA 4.0. Dictionaries loaded by the component retain their own terms.

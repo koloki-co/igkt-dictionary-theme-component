@@ -107,8 +107,19 @@ test("category, missing-language and column-selection behaviour is preserved", (
   const finnish = logic.buildTableModel({ entries: prepared, from: "fi", to: ["en"], cat: "", query: "", letter: "" });
   assert.equal(finnish.rows.length, 2);
   assert.equal(finnish.missing, 9);
-  assert.deepEqual(logic.adjustToLanguages("en", "sv", ["sv", "fr"]), ["en", "fr"]);
-  assert.equal(logic.defaultToLanguages("en").length, 5);
+  const languages = ["en", "sv", "fr"];
+  assert.deepEqual(logic.adjustToLanguages("en", "sv", ["sv", "fr"], languages), ["en", "fr"]);
+  assert.deepEqual(logic.defaultToLanguages("en", languages), ["sv", "fr"]);
+});
+
+test("languages come from data and can be ordered, limited and renamed", () => {
+  const entry = { terms: { ja: ["星"], en: ["star"], "pt-BR": ["estrela"] } };
+  assert.deepEqual(logic.dictionaryLanguages([entry]).codes, ["ja", "en", "pt-BR"]);
+  const { codes, names } = logic.dictionaryLanguages([entry], "pt-BR, ja", "ja=Japanese");
+  assert.deepEqual(codes, ["pt-BR", "ja"]);
+  assert.equal(names.ja, "Japanese");
+  assert.equal(logic.prepareEntries([entry], codes)[0]._fold.includes("star"), false);
+  assert.throws(() => logic.dictionaryLanguages([entry], "de"), /language_order/);
 });
 
 test("the no-term count follows the letter filter as well as search and category", () => {
