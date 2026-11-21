@@ -1,6 +1,6 @@
 # IGKT dictionary v2 review
 
-Scope: code-only v2 archive and local invented-data checks. This is not approval for production deployment or evidence of a Discourse compile or rendered accessibility test.
+Scope: code-only v2 archive and local invented-data checks. This is the import review, not a record of later changes. Current status is in [roadmap.md](roadmap.md). This is not approval for production deployment or evidence of a Discourse compile or rendered accessibility test.
 
 ## Provenance and distribution boundary
 

@@ -50,7 +50,7 @@ POST1_INTRO = """# IGKT Knot Dictionary data (part {part} of {parts})
 This topic holds the word list for the Knot Dictionary at `/dictionary`.
 The word list is **not** covered by the theme component's MIT licence; it stays on the IGKT forum.
 
-Sources: Wikidata (CC0); Wiktionary and Finnish Wikipedia (CC BY-SA, with attribution); J. Ezelius and Virittäjä (used with permission for the IGKT forum); Hjalmar Öhrvall, *Om knutar* (1916); Witcomb (1883); French review by Jean Bernard de Runz (JeanB). No machine translation is used.
+Sources: Wikidata (CC0); Wiktionary and Finnish Wikipedia (CC BY-SA, with attribution); J. Ezelius and Virittäjä (used with permission for the IGKT forum); Hjalmar Öhrvall, *Om knutar* (1916); Witcomb (1883); Sam Svensson, *Handbok i sjömansarbete* (1941); French review by Jean Bernard de Runz (JeanB). No machine translation is used.
 
 Please do not add ordinary replies here. To update the list, edit the fenced `{fence}` blocks below. Moderators can edit this topic when it is a wiki.
 
@@ -81,7 +81,13 @@ def normalize_entry(raw: dict) -> dict:
             elif raw.get(lang):
                 # Fallback: comma-separated language field (legacy).
                 terms[lang] = [t.strip() for t in str(raw[lang]).split(",") if t.strip()]
-    terms = {lang: list(val) for lang, val in terms.items() if val}
+    # Copy lists only. list() on a string splits the term into characters.
+    # This matches dictionary-data.js, which keeps array values and drops the rest.
+    terms = {
+        lang: list(val)
+        for lang, val in terms.items()
+        if isinstance(val, list) and val
+    }
     entry = {
         "id": raw.get("id"),
         "category": raw.get("category") or "term",
@@ -93,7 +99,29 @@ def normalize_entry(raw: dict) -> dict:
     notes = public_notes(raw.get("notes"))
     if notes:
         entry["notes"] = notes
+    cleaned = clean_sources(sources)
+    if cleaned:
+        entry["sources"] = cleaned
     return entry
+
+
+def clean_sources(sources) -> dict | None:
+    if not isinstance(sources, dict):
+        return None
+    out = {}
+    for lang, lang_map in sources.items():
+        if not isinstance(lang_map, dict):
+            continue
+        terms = {}
+        for term, ids in lang_map.items():
+            if not term or not isinstance(ids, list):
+                continue
+            clean = [item for item in ids if isinstance(item, str) and item]
+            if clean:
+                terms[term] = clean
+        if terms:
+            out[lang] = terms
+    return out or None
 
 
 def entry_line(entry: dict) -> str:

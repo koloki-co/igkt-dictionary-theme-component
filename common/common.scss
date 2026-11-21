@@ -6,28 +6,41 @@
  * automatically.
  */
 
+/*
+ * Dictionary page only. {{hideApplicationSidebar}} removes the sidebar
+ * from the layout and restores it when the route is left, so the header
+ * navigation and the Powered by Discourse credit stay available.
+ *
+ * Do not set grid-template-areas. Discourse names them "sidebar content"
+ * / "sidebar below-content", and below the md breakpoint (48rem) only
+ * "content" / "below-content". The credit lives in "below-content".
+ * Renaming the areas drops the credit onto the dictionary.
+ *
+ * Do not force a two-column track list either. Below md the outlet is
+ * placed in the only column. A list of "0" and "1fr" then squeezes the
+ * dictionary and the credit into that first track, beside an empty one.
+ * Desktop tracks already follow --d-sidebar-width, so zeroing the
+ * variable collapses a sidebar that is still rendered. Below md,
+ * has-sidebar-page keeps two tracks at every width; once the variable
+ * is 0 those tracks have the same effect, so restore the single column.
+ * Hide .sidebar-wrapper so a leftover sidebar cannot paint over the table.
+ */
 body.dictionary-page {
   --d-sidebar-width: 0px;
 
-  #main-outlet-wrapper {
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-areas: "main" !important;
-    gap: 0 !important;
-  }
-
-  .sidebar-wrapper,
-  #d-sidebar,
-  .sidebar-footer-wrapper,
-  .d-toc-wrapper,
-  .d-toc-main,
-  .topic-navigation,
-  .topic-timeline,
-  .discourse-toc {
+  .sidebar-wrapper {
     display: none !important;
+    overflow: hidden;
   }
 
   #main-outlet {
     max-width: none;
+  }
+
+  @media (width < 48rem) {
+    &.has-sidebar-page #main-outlet-wrapper {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 }
 
@@ -70,7 +83,8 @@ body.dictionary-page {
     align-items: flex-end;
     margin-bottom: 0.75em;
 
-    label {
+    label,
+    .igkt-dictionary__field {
       display: flex;
       flex-direction: column;
       gap: 0.25em;
@@ -148,12 +162,33 @@ body.dictionary-page {
     color: var(--primary-low);
   }
 
+  // Shown only in the narrow-screen card layout, where the header row is hidden.
+  &__lang {
+    display: none;
+  }
+
+  button:focus-visible,
+  select:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--tertiary);
+    outline-offset: 2px;
+  }
+
+  &__notes-toggle {
+    margin-left: 0.5em;
+    vertical-align: baseline;
+  }
+
   &__row.has {
     cursor: pointer;
 
     &:hover td {
       background: var(--d-hover, var(--primary-very-low));
     }
+  }
+
+  &__det[hidden] {
+    display: none !important;
   }
 
   &__det td {
@@ -219,14 +254,13 @@ body.dictionary-page {
         border: 0;
         padding: 0.15em 0.25em;
       }
+    }
 
-      td[data-l]::before {
-        content: attr(data-l);
-        display: inline-block;
-        width: 2.6em;
-        color: var(--primary-medium);
-        font-size: var(--font-down-2, 0.75em);
-      }
+    &__lang {
+      display: inline-block;
+      width: 2.6em;
+      color: var(--primary-medium);
+      font-size: var(--font-down-2, 0.75em);
     }
 
     &__anchor,

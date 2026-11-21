@@ -1,9 +1,10 @@
 /**
- * Display names for source ids used in ordbok.json (`sources[lang][term]`).
+ * Editor reference: display names for source ids in ordbok.json
+ * (`sources[lang][term]`).
  *
- * Keep this map as the single place that turns a source id into a label.
- * When Finnish terms from Virittäjä are added under the id `virittaja`,
- * they pick up the existing label automatically — no other code change.
+ * The dictionary page does not import this file. Visitors see the footer
+ * credit from the sources_note setting, not a label looked up here.
+ * Keep this list aligned with the table in README.md.
  *
  * `niclas` and `egen` are IGKT's own additions (not a published source).
  */
@@ -14,6 +15,7 @@ export const SOURCE_LABELS = {
   ohrvall: "Öhrvall (1916)",
   ezelius: "Ezelius",
   witcomb1883: "Witcomb (1883)",
+  svensson1941: "Svensson (1941)",
   jeanb: "Jean Bernard de Runz (JeanB)",
   virittaja: "Virittäjä",
   niclas: "IGKT",

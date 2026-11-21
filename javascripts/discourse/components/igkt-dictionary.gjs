@@ -1,5 +1,5 @@
 import Component from "@glimmer/component";
-import { tracked } from "@glimmer/tracking";
+import { cached, tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
 import { on } from "@ember/modifier";
 import { fn } from "@ember/helper";
@@ -15,12 +15,15 @@ import {
   firstTerm,
   formatTerms,
   prepareEntries,
+  rowClickTogglesNotes,
 } from "../lib/dictionary-logic";
 import {
+  applyDictionaryLoad,
   defaultFetchJson,
   defaultFetchText,
   loadDictionary,
 } from "../lib/dictionary-data";
+import { sanitizeSourcesHtml } from "../lib/sources-html";
 
 export default class IgktDictionary extends Component {
   @tracked from;
@@ -32,9 +35,11 @@ export default class IgktDictionary extends Component {
   @tracked entries = [];
   @tracked loadState = "loading";
   @tracked loadError = "";
+  @tracked loadWarning = "";
 
   languageOrder = LANGUAGE_ORDER;
   languageNames = LANGUAGE_NAMES;
+  #loadAbort = typeof AbortController === "undefined" ? null : new AbortController();
 
   constructor() {
     super(...arguments);
@@ -46,24 +51,42 @@ export default class IgktDictionary extends Component {
     this.#load();
   }
 
+  // Cancel the word-list request when the visitor leaves /dictionary.
+  willDestroy() {
+    super.willDestroy();
+    if (this.#loadAbort) {
+      this.#loadAbort.abort();
+    }
+  }
+
   async #load() {
     const topicId =
       typeof settings !== "undefined" ? settings.data_topic_id || "" : "";
     const url = typeof settings !== "undefined" ? settings.data_url || "" : "";
-    try {
-      const entries = await loadDictionary({
+    const signal = this.#loadAbort ? this.#loadAbort.signal : undefined;
+    const fetchOptions = signal ? { signal } : {};
+    await applyDictionaryLoad(
+      this,
+      loadDictionary({
         topicId,
         url,
-        fetchJson: (path) => defaultFetchJson(path),
-        fetchText: (path) => defaultFetchText(path),
-      });
-      this.entries = entries;
-      this.loadState = "ready";
-    } catch (err) {
-      const code = err && err.code;
-      this.loadError = (err && err.message) || String(err);
-      this.loadState = code === "unconfigured" ? "unconfigured" : "error";
-    }
+        fetchJson: (path) => defaultFetchJson(path, undefined, fetchOptions),
+        fetchText: (path) => defaultFetchText(path, undefined, fetchOptions),
+      }),
+      {
+        ready: (entries) => {
+          this.entries = entries;
+          this.loadWarning =
+            entries && Array.isArray(entries.warnings) ? entries.warnings.join(" ") : "";
+          this.loadState = "ready";
+        },
+        failed: (err) => {
+          const code = err && err.code;
+          this.loadError = (err && err.message) || String(err);
+          this.loadState = code === "unconfigured" ? "unconfigured" : "error";
+        },
+      }
+    );
   }
 
   get prepared() {
@@ -78,6 +101,8 @@ export default class IgktDictionary extends Component {
     return this.entries.length;
   }
 
+  // Cached so opening notes, which does not change the filter, keeps the same row objects.
+  @cached
   get model() {
     return buildTableModel({
       entries: this.prepared,
@@ -105,10 +130,18 @@ export default class IgktDictionary extends Component {
     });
   }
 
+  get pageTitle() {
+    return configuredText("page_title") || i18n(themePrefix("title"));
+  }
+
+  get pageSubtitle() {
+    return configuredText("page_subtitle") || i18n(themePrefix("subtitle"));
+  }
+
   get sourcesNote() {
-    const html =
-      typeof settings !== "undefined" ? settings.sources_note || "" : "";
-    return html ? htmlSafe(html) : "";
+    const html = configuredText("sources_note");
+    const clean = sanitizeSourcesHtml(html);
+    return clean ? htmlSafe(clean) : "";
   }
 
   get loadErrorText() {
@@ -166,8 +199,8 @@ export default class IgktDictionary extends Component {
   <template>
     <div class="igkt-dictionary" id="igkt-dictionary-root">
       <header class="igkt-dictionary__header">
-        <h1>{{i18n (themePrefix "title")}}</h1>
-        <p>{{i18n (themePrefix "subtitle")}}</p>
+        <h1 id="igkt-dictionary-title">{{this.pageTitle}}</h1>
+        <p>{{this.pageSubtitle}}</p>
       </header>
 
       {{#if (eq this.loadState "loading")}}
@@ -202,15 +235,20 @@ export default class IgktDictionary extends Component {
               </select>
             </label>
 
-            <label>
-              {{i18n (themePrefix "to_label")}}
-              <span class="igkt-dictionary__to">
+            <div class="igkt-dictionary__field">
+              <span id="igkt-dictionary-to-label">{{i18n (themePrefix "to_label")}}</span>
+              <span
+                class="igkt-dictionary__to"
+                role="group"
+                aria-labelledby="igkt-dictionary-to-label"
+              >
                 {{#each this.languageOrder as |lang|}}
                   <button
                     type="button"
                     title={{get this.languageNames lang}}
+                    aria-label={{get this.languageNames lang}}
                     disabled={{eq lang this.from}}
-                    aria-pressed={{includes this.to lang}}
+                    aria-pressed={{if (includes this.to lang) "true" "false"}}
                     class="btn btn-small {{if (includes this.to lang) 'btn-primary' 'btn-default'}}"
                     {{on "click" (fn this.toggleTo lang)}}
                   >
@@ -218,7 +256,7 @@ export default class IgktDictionary extends Component {
                   </button>
                 {{/each}}
               </span>
-            </label>
+            </div>
 
             <label>
               {{i18n (themePrefix "category_label")}}
@@ -244,10 +282,20 @@ export default class IgktDictionary extends Component {
             </label>
           </div>
 
-          <div class="igkt-dictionary__letters">
+          {{#if this.loadWarning}}
+            <p class="igkt-dictionary__status" role="status">{{this.loadWarning}}</p>
+          {{/if}}
+
+          <div
+            class="igkt-dictionary__letters"
+            role="group"
+            aria-label={{i18n (themePrefix "letters_label")}}
+          >
             <button
               type="button"
               class="btn btn-small {{if (eq this.model.letter '') 'btn-primary' 'btn-default'}}"
+              aria-pressed={{if (eq this.model.letter "") "true" "false"}}
+              aria-label={{i18n (themePrefix "letter_all_aria")}}
               {{on "click" (fn this.setLetter "")}}
             >
               {{i18n (themePrefix "letter_all")}}
@@ -256,6 +304,8 @@ export default class IgktDictionary extends Component {
               <button
                 type="button"
                 class="btn btn-small {{if (eq this.model.letter letter) 'btn-primary' 'btn-default'}}"
+                aria-pressed={{if (eq this.model.letter letter) "true" "false"}}
+                aria-label={{letterLabel letter}}
                 {{on "click" (fn this.setLetter letter)}}
               >
                 {{letter}}
@@ -267,7 +317,7 @@ export default class IgktDictionary extends Component {
             {{this.countText}}
           </div>
 
-          <table class="igkt-dictionary__table">
+          <table class="igkt-dictionary__table" aria-labelledby="igkt-dictionary-title">
             <thead>
               <tr>
                 <th>{{get this.languageNames this.from}}</th>
@@ -277,7 +327,7 @@ export default class IgktDictionary extends Component {
               </tr>
             </thead>
             <tbody>
-              {{#each this.model.items as |item|}}
+              {{#each this.model.items key="rowKey" as |item|}}
                 {{#if (eq item.type "anchor")}}
                   <tr class="igkt-dictionary__anchor">
                     <td colspan={{add this.to.length 1}}>{{item.letter}}</td>
@@ -287,8 +337,8 @@ export default class IgktDictionary extends Component {
                     @entry={{item.entry}}
                     @from={{this.from}}
                     @to={{this.to}}
-                    @open={{get this.openIds item.entry.id}}
-                    @toggle={{fn this.toggleNotes item.entry.id}}
+                    @open={{get this.openIds item.entry._notesId}}
+                    @toggle={{fn this.toggleNotes item.entry._notesId}}
                   />
                 {{/if}}
               {{/each}}
@@ -326,22 +376,76 @@ function uppercase(value) {
   return String(value).toUpperCase();
 }
 
+function letterLabel(letter) {
+  return i18n(themePrefix("letter_aria"), { letter });
+}
+
+function configuredText(name) {
+  if (typeof settings === "undefined" || !settings) {
+    return "";
+  }
+  const value = settings[name];
+  return value == null ? "" : String(value).trim();
+}
+
+function notesLabel(entry, from, open) {
+  const term = firstTerm(entry, from) || "this entry";
+  return i18n(themePrefix(open ? "notes_hide_for" : "notes_show_for"), { term });
+}
+
+function notesButtonText(open) {
+  return i18n(themePrefix(open ? "notes_hide" : "notes_show"));
+}
+
+function toggleFromButton(toggle) {
+  return (event) => {
+    event.stopPropagation();
+    toggle(event);
+  };
+}
+
+function toggleFromRow(hasNotes, toggle) {
+  if (!hasNotes) {
+    return () => {};
+  }
+  return (event) => {
+    if (!rowClickTogglesNotes(event)) {
+      return;
+    }
+    toggle(event);
+  };
+}
+
 const IgktDictionaryRow = <template>
   <tr
     class="igkt-dictionary__row{{if @entry.notes ' has'}}{{if @open ' is-open'}}"
-    role={{if @entry.notes "button"}}
-    {{on "click" (rowClick @entry.notes @toggle)}}
+    {{on "click" (toggleFromRow @entry.notes @toggle)}}
   >
-    <td class="igkt-dictionary__src" data-l={{uppercase @from}}>
+    <td class="igkt-dictionary__src" lang={{@from}}>
+      <span class="igkt-dictionary__lang" lang="en">{{uppercase @from}}</span>
       {{#if (firstTerm @entry @from)}}
         {{formatTerms @entry @from}}
       {{else}}
         <span class="igkt-dictionary__dash">–</span>
       {{/if}}
-      <span class="igkt-dictionary__cat">{{@entry.category}}</span>
+      <span class="igkt-dictionary__cat" lang="en">{{@entry.category}}</span>
+      {{#if @entry.notes}}
+        <button
+          type="button"
+          lang="en"
+          class="btn btn-small btn-default igkt-dictionary__notes-toggle"
+          aria-expanded={{if @open "true" "false"}}
+          aria-controls={{@entry._notesId}}
+          aria-label={{notesLabel @entry @from @open}}
+          {{on "click" (toggleFromButton @toggle)}}
+        >
+          {{notesButtonText @open}}
+        </button>
+      {{/if}}
     </td>
     {{#each @to as |lang|}}
-      <td data-l={{uppercase lang}}>
+      <td lang={{lang}}>
+        <span class="igkt-dictionary__lang" lang="en">{{uppercase lang}}</span>
         {{#if (firstTerm @entry lang)}}
           {{formatTerms @entry lang}}
         {{else}}
@@ -350,8 +454,12 @@ const IgktDictionaryRow = <template>
       </td>
     {{/each}}
   </tr>
-  {{#if (and @open @entry.notes)}}
-    <tr class="igkt-dictionary__det">
+  {{#if @entry.notes}}
+    <tr
+      id={{@entry._notesId}}
+      class="igkt-dictionary__det"
+      hidden={{not @open}}
+    >
       <td colspan={{add @to.length 1}}>
         <ul>
           {{#each @entry.notes as |note|}}
@@ -363,10 +471,6 @@ const IgktDictionaryRow = <template>
   {{/if}}
 </template>;
 
-function and(a, b) {
-  return a && b;
-}
-
-function rowClick(hasNotes, toggle) {
-  return hasNotes ? toggle : () => {};
+function not(value) {
+  return !value;
 }

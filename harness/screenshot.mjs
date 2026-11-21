@@ -1,6 +1,11 @@
+// Local screenshots only. The forum page does not load this file.
+// puppeteer-core is not a dependency of this repository. Install it where
+// Node can import it (`npm install puppeteer-core`) and point Chrome at
+// CHROME_PATH, or leave the default /usr/bin/google-chrome.
 import { mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import puppeteer from "puppeteer-core";
 import { createMockForumServer } from "./mock-forum.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -17,10 +22,6 @@ const pageUrl = useForum
   ? `${base}/harness/index.html?topic=99999`
   : `${base}/harness/index.html`;
 console.log("serving", pageUrl);
-
-const { default: puppeteer } = await import(
-  pathToFileURL("/tmp/igkt-shot/node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js").href
-);
 
 const browser = await puppeteer.launch({
   executablePath: chromePath,
