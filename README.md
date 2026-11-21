@@ -28,7 +28,9 @@ The exporter budgets **30,000 characters per post**, including its own wrapper. 
 3. Keep the topic for data only. The component reads at most **30 topic posts**, including ordinary replies it has to check, and rejects a header that declares more than 30 parts. Close the topic to ordinary replies and check who can edit each data post, especially if you make it a wiki.
 4. Copy the topic ID from its URL. For `/t/my-dictionary-data/123`, the ID is `123`.
 
-The old `igkt-dictionary` fence still works. If the data won't fit in one topic, host the exported `dictionary.json` at a URL your visitors can read. Set `data_url` to that URL and leave `data_topic_id` blank. Prefer a same-origin URL; a different origin must allow browser requests from your forum. The loader rejects responses over 1,000,000 characters and times out after 20 seconds per request, including the body read. Publish only the notes and entries you intend readers to see.
+The exporter refuses to create more than 30 topic parts and requires an empty output directory. Use a new directory for each export. The old `igkt-dictionary` fence still works.
+
+If the data won't fit in one topic, run the exporter with `--json-only` and host the resulting `dictionary.json` at a URL your visitors can read. Set `data_url` to that URL and leave `data_topic_id` blank. Prefer a same-origin URL; a different origin must allow browser requests from your forum. The loader rejects responses over 1,000,000 characters and times out after 20 seconds per request, including the body read. Publish only the notes and entries you intend readers to see.
 
 ## 2. Install the theme component
 
@@ -53,8 +55,13 @@ Open `/dictionary` in a new tab and refresh. If the dictionary is public, repeat
 | `language_labels` | Overrides for the built-in language names, such as `ja=日本語\|en=English`. |
 | `default_from_language` | Initial source language. Blank uses the first displayed language. |
 | `sources_note` | Footer for source credits and licence terms. Blank by default. Supports links and limited formatting. |
+| `show_term_sources`, `source_credits` | Show the sources supplied for each term. Optionally map each source ID to a label and HTTP(S) link. |
 | `hidden_note_prefixes` | Optional case-insensitive note prefixes separated by a pipe (`\|`). This only hides matching notes in the dictionary display. It doesn't remove them from the data topic. |
 | `show_header_link`, `header_link_title` | Show the header control and set its opening label. |
+
+## Update data and check credits
+
+See [Updating the dictionary](docs/updating-the-dictionary.md) for a bulk update, rollback and an example of term-level credits.
 
 ## Development
 
@@ -65,6 +72,8 @@ node harness/serve.mjs
 ```
 
 Tests and the loopback preview use invented data by default. Do not add real word lists or data-bearing screenshots to Git. See [the roadmap](roadmap.md) for integration checks and [IGKT setup](docs/igkt-setup.md) for the original deployment's settings.
+
+See [Browser smoke test](docs/browser-smoke-test.md) for the tested Discourse build and how to repeat the check.
 
 ## Licence
 
