@@ -47,8 +47,8 @@ test("term cells carry lang and a real narrow-screen language label", async () =
   const harness = await read("harness/app.js");
   const preview = await read("harness/styles.css");
 
-  assert.match(page, /<td class="igkt-dictionary__src" lang=\{\{@from\}\}>/);
-  assert.match(page, /<td lang=\{\{lang\}\}>/);
+  assert.match(page, /<td class="igkt-dictionary__src" lang=\{\{@from\}\} role="cell">/);
+  assert.match(page, /<td lang=\{\{lang\}\} role="cell">/);
   assert.match(page, /class="igkt-dictionary__lang" lang="en"/);
   assert.doesNotMatch(page, /data-l=/);
   assert.match(scss, /&__lang\s*\{[^}]*display:\s*none/);

@@ -12,7 +12,6 @@ import {
   defaultToLanguages,
   dictionaryLanguages,
   firstTerm,
-  formatTerms,
   prepareEntries,
   rowClickTogglesNotes,
 } from "../lib/dictionary-logic";
@@ -23,6 +22,7 @@ import {
   loadDictionary,
 } from "../lib/dictionary-data";
 import { sanitizeSourcesHtml } from "../lib/sources-html";
+import { parseSourceCredits, termsWithCredits } from "../lib/source-credits";
 
 export default class IgktDictionary extends Component {
   @tracked from;
@@ -149,6 +149,15 @@ export default class IgktDictionary extends Component {
     const html = configuredText("sources_note");
     const clean = sanitizeSourcesHtml(html);
     return clean ? htmlSafe(clean) : "";
+  }
+
+  get showTermSources() {
+    return typeof settings !== "undefined" && settings.show_term_sources;
+  }
+
+  @cached
+  get sourceCredits() {
+    return parseSourceCredits(configuredText("source_credits"));
   }
 
   get loadErrorText() {
@@ -326,19 +335,19 @@ export default class IgktDictionary extends Component {
             {{this.countText}}
           </div>
 
-          <table class="igkt-dictionary__table" aria-labelledby="igkt-dictionary-title">
-            <thead>
-              <tr>
-                <th>{{get this.languageNames this.from}}</th>
+          <table class="igkt-dictionary__table" aria-labelledby="igkt-dictionary-title" role="table">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col">{{get this.languageNames this.from}}</th>
                 {{#each this.to as |lang|}}
-                  <th>{{get this.languageNames lang}}</th>
+                  <th scope="col">{{get this.languageNames lang}}</th>
                 {{/each}}
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {{#each this.model.items key="rowKey" as |item|}}
                 {{#if (eq item.type "anchor")}}
-                  <tr class="igkt-dictionary__anchor">
+                  <tr aria-hidden="true" class="igkt-dictionary__anchor">
                     <td colspan={{add this.to.length 1}}>{{item.letter}}</td>
                   </tr>
                 {{else}}
@@ -347,6 +356,8 @@ export default class IgktDictionary extends Component {
                     @from={{this.from}}
                     @to={{this.to}}
                     @open={{get this.openIds item.entry._notesId}}
+                    @showTermSources={{this.showTermSources}}
+                    @sourceCredits={{this.sourceCredits}}
                     @toggle={{fn this.toggleNotes item.entry._notesId}}
                   />
                 {{/if}}
@@ -425,19 +436,39 @@ function toggleFromRow(hasNotes, toggle) {
   };
 }
 
+function creditedTerms(entry, lang, show, registry) {
+  return termsWithCredits(entry, lang, show ? registry : null);
+}
+
+const DictionaryTerms = <template>
+  {{#each (creditedTerms @entry @lang @showTermSources @sourceCredits) as |item index|}}
+    {{#if index}}, {{/if}}<bdi dir="auto" lang={{@lang}}>{{item.term}}</bdi>
+    {{#if @showTermSources}}
+      {{#each item.credits as |credit|}}
+        <small class="igkt-dictionary__source-credit">
+          {{#if credit.url}}
+            <a href={{credit.url}}><bdi>{{credit.label}}</bdi></a>
+          {{else}}
+            <bdi>{{credit.label}}</bdi>
+          {{/if}}
+        </small>
+      {{/each}}
+    {{/if}}
+  {{else}}
+    <span class="igkt-dictionary__dash">–</span>
+  {{/each}}
+</template>;
+
 const IgktDictionaryRow = <template>
   <tr
     class="igkt-dictionary__row{{if @entry.notes ' has'}}{{if @open ' is-open'}}"
+    role="row"
     {{on "click" (toggleFromRow @entry.notes @toggle)}}
   >
-    <td class="igkt-dictionary__src" lang={{@from}}>
+    <td class="igkt-dictionary__src" lang={{@from}} role="cell">
       <span class="igkt-dictionary__lang" lang="en">{{uppercase @from}}</span>
-      {{#if (firstTerm @entry @from)}}
-        {{formatTerms @entry @from}}
-      {{else}}
-        <span class="igkt-dictionary__dash">–</span>
-      {{/if}}
-      <span class="igkt-dictionary__cat" lang="en">{{@entry.category}}</span>
+      <DictionaryTerms @entry={{@entry}} @lang={{@from}} @showTermSources={{@showTermSources}} @sourceCredits={{@sourceCredits}} />
+      <bdi class="igkt-dictionary__cat">{{@entry.category}}</bdi>
       {{#if @entry.notes}}
         <button
           type="button"
@@ -453,13 +484,9 @@ const IgktDictionaryRow = <template>
       {{/if}}
     </td>
     {{#each @to as |lang|}}
-      <td lang={{lang}}>
+      <td lang={{lang}} role="cell">
         <span class="igkt-dictionary__lang" lang="en">{{uppercase lang}}</span>
-        {{#if (firstTerm @entry lang)}}
-          {{formatTerms @entry lang}}
-        {{else}}
-          <span class="igkt-dictionary__dash">–</span>
-        {{/if}}
+        <DictionaryTerms @entry={{@entry}} @lang={{lang}} @showTermSources={{@showTermSources}} @sourceCredits={{@sourceCredits}} />
       </td>
     {{/each}}
   </tr>
@@ -468,11 +495,12 @@ const IgktDictionaryRow = <template>
       id={{@entry._notesId}}
       class="igkt-dictionary__det"
       hidden={{not @open}}
+      role="row"
     >
-      <td colspan={{add @to.length 1}}>
+      <td colspan={{add @to.length 1}} role="cell">
         <ul>
           {{#each @entry.notes as |note|}}
-            <li>{{note}}</li>
+            <li dir="auto">{{note}}</li>
           {{/each}}
         </ul>
       </td>

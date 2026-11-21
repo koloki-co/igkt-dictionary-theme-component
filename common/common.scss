@@ -117,7 +117,7 @@ body.dictionary-page {
     border-collapse: collapse;
 
     th {
-      text-align: left;
+      text-align: start;
       border-bottom: 2px solid var(--tertiary);
       padding: 0.5em 0.4em;
       font-size: var(--font-down-1, 0.85em);
@@ -138,6 +138,11 @@ body.dictionary-page {
 
   &__src {
     font-weight: 600;
+  }
+
+  &__source-credit {
+    margin-inline-start: 0.35em;
+    font-weight: normal;
   }
 
   &__cat {
@@ -227,7 +232,11 @@ body.dictionary-page {
 
     &__table {
       thead {
-        display: none;
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
       }
 
       tbody,

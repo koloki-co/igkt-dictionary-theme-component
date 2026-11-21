@@ -42,3 +42,12 @@ sources_note:
   type: string
   textarea: true
   default: ""
+
+show_term_sources:
+  type: bool
+  default: false
+
+source_credits:
+  type: string
+  textarea: true
+  default: ""

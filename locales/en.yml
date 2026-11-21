@@ -13,6 +13,8 @@ en:
       data_topic_id: "Numeric id of the public forum topic that holds the word list (preferred). The component fetches /t/{id}.json and /raw/{id}/{post_number}. Leave blank only if data_url is set."
       data_url: "Optional fallback URL to a JSON array or a dictionary document. Used when the topic is unset or cannot be loaded."
       sources_note: "Optional footer for credits and licence terms. Allowed HTML: p, a, strong, em and br. Use HTTP(S) or same-site links."
+      show_term_sources: "Show source credits next to each term that has source IDs in the data."
+      source_credits: 'Optional JSON map of source IDs to labels and HTTP(S) links, for example {"catalogue":{"label":"Illustration catalogue","url":"https://example.com"}}.'
   title: "Dictionary"
   header_link_title: "Dictionary"
   back_to_forum: "Back to forum"
