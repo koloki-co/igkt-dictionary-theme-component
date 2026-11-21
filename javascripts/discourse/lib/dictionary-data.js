@@ -107,8 +107,11 @@ export function normalizeEntry(raw) {
   }
   const cleanTerms = {};
   for (const [lang, val] of Object.entries(terms)) {
-    if (Array.isArray(val) && val.length) {
-      cleanTerms[lang] = val.slice();
+    if (Array.isArray(val)) {
+      const values = val.filter((term) => typeof term === "string" && term.trim());
+      if (values.length) {
+        cleanTerms[lang] = values;
+      }
     }
   }
   if (!Object.keys(cleanTerms).length) {
@@ -303,11 +306,17 @@ export function assembleParts(partResults) {
       "No dictionary data was found in the topic or URL. Check that the posts contain an igkt-dictionary code block."
     );
   }
-  const numbered = usable.filter((p) => p.part != null && p.parts != null);
+  const numbered = usable.filter((p) => p.part != null || p.parts != null);
   if (numbered.length) {
     const expected = numbered[0].parts;
     const byPart = new Map();
     for (const p of numbered) {
+      if (
+        !Number.isInteger(p.parts) || p.parts < 1 || p.parts > MAX_TOPIC_POSTS ||
+        !Number.isInteger(p.part) || p.part < 1 || p.part > p.parts
+      ) {
+        throw new DictionaryLoadError("malformed", "Invalid dictionary part number or count.");
+      }
       if (p.parts !== expected) {
         throw new DictionaryLoadError(
           "incomplete",
@@ -407,6 +416,9 @@ export function postNumbersToFetch(topic) {
     return [];
   }
   const uniqueListed = [...new Set(listed)].sort((a, b) => a - b);
+  if (uniqueListed.length > MAX_TOPIC_POSTS || count > MAX_TOPIC_POSTS) {
+    throw new DictionaryLoadError("incomplete", "The data topic has too many posts.");
+  }
   if (uniqueListed.length && count && uniqueListed.length >= count && listedMax === last) {
     return uniqueListed;
   }
@@ -628,7 +640,37 @@ function abortedRequest() {
   return error;
 }
 
-async function fetchResponse(path, fetchImpl, timeoutMs, externalSignal) {
+async function readBody(res) {
+  if (!res.body?.getReader) {
+    const text = await res.text();
+    assertBodySize(text);
+    return text;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let complete = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        complete = true;
+        text += decoder.decode();
+        assertBodySize(text);
+        return text;
+      }
+      text += decoder.decode(value, { stream: true });
+      assertBodySize(text);
+    }
+  } finally {
+    if (!complete) {
+      reader.cancel().catch(() => {});
+    }
+    reader.releaseLock();
+  }
+}
+
+async function fetchBody(path, fetchImpl, timeoutMs, externalSignal) {
   if (externalSignal && externalSignal.aborted) {
     throw abortedRequest();
   }
@@ -657,7 +699,13 @@ async function fetchResponse(path, fetchImpl, timeoutMs, externalSignal) {
     } else if (externalSignal) {
       options.signal = externalSignal;
     }
-    return await fetchFn(path, options);
+    const res = await fetchFn(path, options);
+    if (!res.ok) {
+      const error = new Error(`HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+    return await readBody(res);
   } catch (err) {
     if (err instanceof DictionaryLoadError) {
       throw err;
@@ -683,14 +731,7 @@ async function fetchResponse(path, fetchImpl, timeoutMs, externalSignal) {
 }
 
 export async function defaultFetchJson(path, fetchImpl, options = {}) {
-  const res = await fetchResponse(path, fetchImpl, options.timeoutMs, options.signal);
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  const text = await res.text();
-  assertBodySize(text);
+  const text = await fetchBody(path, fetchImpl, options.timeoutMs, options.signal);
   try {
     return JSON.parse(text);
   } catch {
@@ -702,13 +743,5 @@ export async function defaultFetchJson(path, fetchImpl, options = {}) {
 }
 
 export async function defaultFetchText(path, fetchImpl, options = {}) {
-  const res = await fetchResponse(path, fetchImpl, options.timeoutMs, options.signal);
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  const text = await res.text();
-  assertBodySize(text);
-  return text;
+  return fetchBody(path, fetchImpl, options.timeoutMs, options.signal);
 }

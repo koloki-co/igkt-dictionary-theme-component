@@ -11,6 +11,29 @@ import { createMockForumServer } from "../harness/mock-forum.mjs";
 import { sanitizeSourcesHtml } from "../javascripts/discourse/lib/sources-html.js";
 
 const root = new URL("../", import.meta.url);
+
+test("multipart headers need a part number within the supported count", async () => {
+  const data = await import("../javascripts/discourse/lib/dictionary-data.js");
+  for (const [part, parts] of [[1, data.MAX_TOPIC_POSTS + 1], [2, 1], [1, null], [1.5, 2]]) {
+    assert.throws(
+      () => data.assembleParts([{ part, parts, entries: [{ id: "invented" }] }]),
+      (error) => error.code === "malformed"
+    );
+  }
+});
+
+test("response body reads stay cancellable after headers arrive", async () => {
+  const data = await import("../javascripts/discourse/lib/dictionary-data.js");
+  const stalled = async (_path, { signal }) => new Response(new ReadableStream({
+    start(controller) {
+      signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
+    },
+  }));
+  await assert.rejects(
+    data.defaultFetchText("/slow-body", stalled, { timeoutMs: 20 }),
+    (error) => error.code === "unavailable" && /timed out/.test(error.message)
+  );
+});
 const load = async (file) => import(`data:text/javascript;base64,${Buffer.from(await readFile(new URL(file, root), "utf8")).toString("base64")}`);
 const data = await load("javascripts/discourse/lib/dictionary-data.js");
 const { SAMPLE_ENTRIES } = await load("javascripts/discourse/lib/sample-data.js");
