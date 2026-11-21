@@ -31,6 +31,8 @@ from pathlib import Path
 
 # Headroom under Discourse's default max_post_length (32_000).
 DEFAULT_MAX_CHARS = 30_000
+MAX_TOPIC_PARTS = 30
+MAX_RESPONSE_CHARS = 1_000_000
 FORMAT_VERSION = 1
 FENCE = "dictionary"
 
@@ -166,7 +168,7 @@ def pack(lines: list[str], max_chars: int) -> list[list[str]]:
     raise SystemExit("Could not pack entries into posts")
 
 
-def export(src: Path, outdir: Path, max_chars: int) -> dict:
+def export(src: Path, outdir: Path, max_chars: int, json_only: bool = False) -> dict:
     raw_bytes = src.read_bytes()
     md5 = hashlib.md5(raw_bytes).hexdigest()
     data = json.loads(raw_bytes.decode("utf-8"))
@@ -174,18 +176,26 @@ def export(src: Path, outdir: Path, max_chars: int) -> dict:
         raise SystemExit(f"{src} is not a JSON list of entries")
     entries = [normalize_entry(e) for e in data]
     lines = [entry_line(e) for e in entries]
-    buckets = pack(lines, max_chars)
-    parts = len(buckets) or 1
+    full = json.dumps(entries, ensure_ascii=False, separators=(",", ":")) + "\n"
+    if json_only and len(full.encode("utf-16-le")) // 2 > MAX_RESPONSE_CHARS:
+        raise SystemExit("dictionary.json exceeds the component's 1,000,000-character response limit.")
+    buckets = [] if json_only else pack(lines, max_chars)
+    parts = len(buckets)
+    if parts > MAX_TOPIC_PARTS:
+        raise SystemExit(f"Export needs {parts} posts; the component allows {MAX_TOPIC_PARTS}. Use --json-only for data_url.")
+    if outdir.exists() and (not outdir.is_dir() or any(outdir.iterdir())):
+        raise SystemExit("Output directory is not empty. Choose a new directory to avoid stale parts or overwritten files.")
+    texts = [
+        build_post(i, parts, bucket, POST1_INTRO if i == 1 else LATER_INTRO)
+        for i, bucket in enumerate(buckets, start=1)
+    ]
+    for i, text in enumerate(texts, start=1):
+        if len(text) > max_chars:
+            raise SystemExit(f"post-{i}.md is {len(text)} characters, over the {max_chars} budget")
     outdir.mkdir(parents=True, exist_ok=True)
 
     posts = []
-    for i, bucket in enumerate(buckets, start=1):
-        intro = POST1_INTRO if i == 1 else LATER_INTRO
-        text = build_post(i, parts, bucket, intro)
-        if len(text) > max_chars:
-            raise SystemExit(
-                f"post-{i}.md is {len(text)} characters, over the {max_chars} budget"
-            )
+    for i, (bucket, text) in enumerate(zip(buckets, texts), start=1):
         path = outdir / f"post-{i}.md"
         path.write_text(text, encoding="utf-8")
         posts.append(
@@ -200,9 +210,8 @@ def export(src: Path, outdir: Path, max_chars: int) -> dict:
             }
         )
 
-    full = json.dumps(entries, ensure_ascii=False, separators=(",", ":"))
     json_path = outdir / "dictionary.json"
-    json_path.write_text(full + "\n", encoding="utf-8")
+    json_path.write_text(full, encoding="utf-8")
 
     manifest = {
         "source": str(src),
@@ -232,6 +241,7 @@ def main(argv: list[str]) -> None:
         help="JSON file containing a list of dictionary entries",
     )
     p.add_argument("--outdir", required=True, help="Directory to write post-N.md and dictionary.json")
+    p.add_argument("--json-only", action="store_true", help="Write dictionary.json for data_url without topic posts")
     p.add_argument(
         "--max-chars",
         type=int,
@@ -242,7 +252,7 @@ def main(argv: list[str]) -> None:
     src = Path(args.source).resolve()
     if not src.is_file():
         raise SystemExit(f"Source not found (read-only expected): {src}")
-    manifest = export(src, Path(args.outdir).resolve(), args.max_chars)
+    manifest = export(src, Path(args.outdir).resolve(), args.max_chars, args.json_only)
     print(f"source  {manifest['source']}")
     print(f"md5     {manifest['source_md5']}")
     print(f"entries {manifest['entries']}")
