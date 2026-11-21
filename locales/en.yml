@@ -2,7 +2,7 @@ en:
   theme_metadata:
     description: "A multilingual knot, ropework and tools dictionary at /dictionary, with search across English, Swedish, German, Finnish, French and Spanish. The word list is loaded from a forum topic, not bundled in the component."
     settings:
-      show_header_link: "Show a Dictionary icon in the site header that opens /dictionary using in-app navigation."
+      show_header_link: "Show a Dictionary icon in the site header. On the dictionary page it becomes a Back to forum arrow."
       header_link_title: "Tooltip and accessible name for the header Dictionary icon."
       page_title: "Optional page title. Leave blank to use the built-in title."
       page_subtitle: "Optional subtitle under the title. Leave blank to use the built-in subtitle."
@@ -13,6 +13,7 @@ en:
   title: "IGKT Multilingual Knot Dictionary"
   subtitle: "Knots, ropework terms and tools in English, Swedish, German, Finnish, French and Spanish. Beta, manually curated."
   header_link_title: "Dictionary"
+  back_to_forum: "Back to forum"
   from_label: "From"
   to_label: "To"
   category_label: "Category"
